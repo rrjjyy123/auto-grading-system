@@ -1,0 +1,9 @@
+@import "tailwindcss";
+
+/* Custom warm yellow background like 학생중재 app */
+:root {
+  --warm-yellow: #FFF8E7;
+  --primary-blue: #3B82F6;
+  --success-green: #10B981;
+  --danger-red: #EF4444;
+}

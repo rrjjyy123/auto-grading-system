@@ -1,0 +1,18 @@
+{
+  "projects": {
+    "default": "auto-grading-system-8d0c7"
+  },
+  "targets": {
+    "auto-grading-system-8d0c7": {
+      "hosting": {
+        "teacher": [
+          "auto-grading-system-8d0c7"
+        ],
+        "student": [
+          "auto-grading-system-student"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

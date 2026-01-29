@@ -1,0 +1,77 @@
+import { useState, useEffect } from 'react'
+import CodeEntry from './components/CodeEntry'
+import SubjectSelect from './components/SubjectSelect'
+import AnswerSheet from './components/AnswerSheet'
+import SubmitComplete from './components/SubmitComplete'
+import './index.css'
+
+function App() {
+  const [screen, setScreen] = useState('code') // 'code', 'subject', 'answer', 'complete'
+  const [studentData, setStudentData] = useState(null) // { studentCode, classData }
+  const [selectedExam, setSelectedExam] = useState(null)
+  const [result, setResult] = useState(null)
+
+  // URL에서 코드 파라미터 확인
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search)
+    const codeParam = params.get('code')
+    if (codeParam) {
+      // CodeEntry 컴포넌트에서 자동으로 처리됨
+    }
+  }, [])
+
+  const handleCodeValidated = (data) => {
+    setStudentData(data)
+    setScreen('subject')
+  }
+
+  const handleExamSelected = (exam) => {
+    setSelectedExam(exam)
+    setScreen('answer')
+  }
+
+  const handleSubmitComplete = (submitResult) => {
+    setResult(submitResult)
+    setScreen('complete')
+  }
+
+  const handleRestart = () => {
+    setScreen('code')
+    setStudentData(null)
+    setSelectedExam(null)
+    setResult(null)
+    // URL 파라미터 제거
+    window.history.replaceState({}, '', window.location.pathname)
+  }
+
+  return (
+    <div className="min-h-screen bg-[#FFF8E7]">
+      {screen === 'code' && (
+        <CodeEntry onValidated={handleCodeValidated} />
+      )}
+      {screen === 'subject' && studentData && (
+        <SubjectSelect
+          studentData={studentData}
+          onSelectExam={handleExamSelected}
+          onBack={() => setScreen('code')}
+        />
+      )}
+      {screen === 'answer' && studentData && selectedExam && (
+        <AnswerSheet
+          studentData={studentData}
+          examData={selectedExam}
+          onSubmit={handleSubmitComplete}
+          onBack={() => setScreen('subject')}
+        />
+      )}
+      {screen === 'complete' && result && (
+        <SubmitComplete
+          result={result}
+          onRestart={handleRestart}
+        />
+      )}
+    </div>
+  )
+}
+
+export default App

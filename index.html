@@ -1,0 +1,709 @@
+<!doctype html>
+<html lang="ko" class="h-full">
+ <head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>기초학력 진단평가 채점 시스템</title>
+  <script src="/_sdk/data_sdk.js"></script>
+  <script src="/_sdk/element_sdk.js"></script>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      box-sizing: border-box;
+    }
+  </style>
+  <style>@view-transition { navigation: auto; }</style>
+ </head>
+ <body class="h-full">
+  <div id="app" class="w-full h-full overflow-auto"></div>
+  <script>
+    const MASTER_ANSWERS = {
+      korean: [3, 1, 1, 4, 1, 3, 1, 3, 1, 1, 4, 4, 4, 2, 1, 1, 1, 1, 3, 4, 4, 4, 4, 2, 2],
+      math: [3, 4, 2, 1, 2, 2, 3, 3, 4, 2, 4, 2, 2, 1, 1, 3, 2, 4, 1, 4, 1, 3, 4, 2, 2],
+      english: [4, 4, 2, 3, 2, 3, 1, 4, 1, 3, 4, 4, 1, 1, 3, 2, 2, 1, 2, 4, 1, 3, 2, 3, 4]
+    };
+
+    const TEACHER_PASSWORD = '4832';
+
+    const defaultConfig = {
+      background_color: '#f0f4f8',
+      surface_color: '#ffffff',
+      text_color: '#1e293b',
+      primary_action_color: '#3b82f6',
+      secondary_action_color: '#64748b',
+      font_family: 'system-ui',
+      font_size: 16,
+      app_title: '기초학력 진단평가 채점 시스템',
+      student_title: '시험 응시',
+      submit_button_text: '답안 제출',
+      teacher_title: '성적 관리 대시보드'
+    };
+
+    let currentView = 'menu';
+    let currentStudentData = null;
+    let allRecords = [];
+
+    const dataHandler = {
+      onDataChanged(data) {
+        allRecords = data;
+        if (currentView === 'teacher') {
+          renderTeacherDashboard();
+        }
+      }
+    };
+
+    async function initApp() {
+      const initResult = await window.dataSdk.init(dataHandler);
+      if (!initResult.isOk) {
+        console.error('Failed to initialize data SDK');
+        return;
+      }
+      renderApp();
+    }
+
+    function renderApp() {
+      const app = document.getElementById('app');
+      const config = window.elementSdk?.config || defaultConfig;
+      
+      app.style.backgroundColor = config.background_color || defaultConfig.background_color;
+      app.style.color = config.text_color || defaultConfig.text_color;
+      app.style.fontFamily = `${config.font_family || defaultConfig.font_family}, -apple-system, BlinkMacSystemFont, sans-serif`;
+
+      if (currentView === 'menu') {
+        renderMenu();
+      } else if (currentView === 'student') {
+        renderStudentInterface();
+      } else if (currentView === 'teacher-login') {
+        renderTeacherLogin();
+      } else if (currentView === 'teacher') {
+        renderTeacherDashboard();
+      }
+    }
+
+    function renderMenu() {
+      const app = document.getElementById('app');
+      const config = window.elementSdk?.config || defaultConfig;
+      const fontSize = config.font_size || defaultConfig.font_size;
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+
+      app.innerHTML = `
+        <div class="min-h-full flex items-center justify-center p-4">
+          <div class="w-full max-w-md p-8 rounded-2xl shadow-lg" style="background-color: ${surfaceColor};">
+            <h1 class="font-bold text-center mb-8" style="font-size: ${fontSize * 2}px;">${config.app_title || defaultConfig.app_title}</h1>
+            <div class="space-y-4">
+              <button id="student-btn" class="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all hover:opacity-90" style="background-color: ${primaryColor}; font-size: ${fontSize * 1.125}px;">
+                학생 시험 응시
+              </button>
+              <button id="teacher-btn" class="w-full py-4 px-6 rounded-xl font-semibold text-white transition-all hover:opacity-90" style="background-color: ${primaryColor}; font-size: ${fontSize * 1.125}px;">
+                교사 대시보드
+              </button>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('student-btn').addEventListener('click', () => {
+        currentView = 'student';
+        renderApp();
+      });
+
+      document.getElementById('teacher-btn').addEventListener('click', () => {
+        currentView = 'teacher-login';
+        renderApp();
+      });
+    }
+
+    function renderStudentInterface() {
+      const app = document.getElementById('app');
+      const config = window.elementSdk?.config || defaultConfig;
+      const fontSize = config.font_size || defaultConfig.font_size;
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const secondaryColor = config.secondary_action_color || defaultConfig.secondary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+
+      if (!currentStudentData) {
+        app.innerHTML = `
+          <div class="min-h-full flex items-center justify-center p-4">
+            <div class="w-full max-w-lg p-8 rounded-2xl shadow-lg" style="background-color: ${surfaceColor};">
+              <h2 class="font-bold mb-6" style="font-size: ${fontSize * 1.5}px;">${config.student_title || defaultConfig.student_title}</h2>
+              <form id="student-info-form" class="space-y-4">
+                <div>
+                  <label for="class-select" class="block mb-2 font-medium" style="font-size: ${fontSize}px;">학급</label>
+                  <select id="class-select" required class="w-full p-3 border-2 rounded-lg" style="font-size: ${fontSize}px; border-color: ${secondaryColor};">
+                    <option value="">학급 선택</option>
+                    ${[1,2,3,4,5,6,7,8,9].map(n => `<option value="${n}">${n}반</option>`).join('')}
+                  </select>
+                </div>
+                <div>
+                  <label for="seat-number" class="block mb-2 font-medium" style="font-size: ${fontSize}px;">번호</label>
+                  <input type="number" id="seat-number" required min="1" max="40" class="w-full p-3 border-2 rounded-lg" style="font-size: ${fontSize}px; border-color: ${secondaryColor};" placeholder="번호 입력">
+                </div>
+                <div>
+                  <label for="student-name" class="block mb-2 font-medium" style="font-size: ${fontSize}px;">이름</label>
+                  <input type="text" id="student-name" required class="w-full p-3 border-2 rounded-lg" style="font-size: ${fontSize}px; border-color: ${secondaryColor};" placeholder="이름 입력">
+                </div>
+                <div>
+                  <label for="subject-select" class="block mb-2 font-medium" style="font-size: ${fontSize}px;">과목</label>
+                  <select id="subject-select" required class="w-full p-3 border-2 rounded-lg" style="font-size: ${fontSize}px; border-color: ${secondaryColor};">
+                    <option value="">과목 선택</option>
+                    <option value="korean">국어</option>
+                    <option value="math">수학</option>
+                    <option value="english">영어</option>
+                  </select>
+                </div>
+                <div class="flex gap-3 pt-4">
+                  <button type="button" id="back-btn" class="flex-1 py-3 px-6 rounded-lg font-semibold text-white transition-all hover:opacity-90" style="background-color: ${secondaryColor}; font-size: ${fontSize}px;">
+                    뒤로
+                  </button>
+                  <button type="submit" class="flex-1 py-3 px-6 rounded-lg font-semibold text-white transition-all hover:opacity-90" style="background-color: ${primaryColor}; font-size: ${fontSize}px;">
+                    시작하기
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('back-btn').addEventListener('click', () => {
+          currentView = 'menu';
+          currentStudentData = null;
+          renderApp();
+        });
+
+        document.getElementById('student-info-form').addEventListener('submit', (e) => {
+          e.preventDefault();
+          currentStudentData = {
+            classNumber: parseInt(document.getElementById('class-select').value),
+            seatNumber: parseInt(document.getElementById('seat-number').value),
+            name: document.getElementById('student-name').value.trim(),
+            subject: document.getElementById('subject-select').value,
+            answers: new Array(25).fill('')
+          };
+          renderApp();
+        });
+      } else {
+        const subjectName = currentStudentData.subject === 'korean' ? '국어' : 
+                           currentStudentData.subject === 'math' ? '수학' : '영어';
+        
+        app.innerHTML = `
+          <div class="min-h-full p-4">
+            <div class="max-w-4xl mx-auto">
+              <div class="p-6 rounded-2xl shadow-lg mb-6" style="background-color: ${surfaceColor};">
+                <h2 class="font-bold mb-2" style="font-size: ${fontSize * 1.5}px;">${subjectName} 답안 작성</h2>
+                <p style="font-size: ${fontSize * 0.875}px; opacity: 0.7;">${currentStudentData.classNumber}반 ${currentStudentData.seatNumber}번 ${currentStudentData.name}</p>
+              </div>
+              
+              <div class="p-6 rounded-2xl shadow-lg" style="background-color: ${surfaceColor};">
+                <div class="grid grid-cols-5 gap-4 mb-6">
+                  ${Array.from({length: 25}, (_, i) => `
+                    <div>
+                      <label class="block mb-2 font-medium" style="font-size: ${fontSize * 0.875}px;">${i + 1}번</label>
+                      <input type="text" id="answer-${i}" maxlength="2" class="w-full p-2 border-2 rounded-lg text-center" style="font-size: ${fontSize}px; border-color: ${secondaryColor};" placeholder="답">
+                    </div>
+                  `).join('')}
+                </div>
+                
+                <div class="flex gap-3">
+                  <button id="cancel-btn" class="flex-1 py-3 px-6 rounded-lg font-semibold text-white transition-all hover:opacity-90" style="background-color: ${secondaryColor}; font-size: ${fontSize}px;">
+                    취소
+                  </button>
+                  <button id="submit-btn" class="flex-1 py-3 px-6 rounded-lg font-semibold text-white transition-all hover:opacity-90" style="background-color: ${primaryColor}; font-size: ${fontSize}px;">
+                    ${config.submit_button_text || defaultConfig.submit_button_text}
+                  </button>
+                </div>
+                
+                <div id="submit-message" class="mt-4 p-4 rounded-lg text-center font-semibold hidden" style="background-color: ${primaryColor}; color: white; font-size: ${fontSize}px;"></div>
+              </div>
+            </div>
+          </div>
+        `;
+
+        document.getElementById('cancel-btn').addEventListener('click', () => {
+          currentView = 'menu';
+          currentStudentData = null;
+          renderApp();
+        });
+
+        document.getElementById('submit-btn').addEventListener('click', async () => {
+          const answers = [];
+          let allFilled = true;
+          
+          for (let i = 0; i < 25; i++) {
+            const value = document.getElementById(`answer-${i}`).value.trim();
+            if (!value) {
+              allFilled = false;
+              break;
+            }
+            answers.push(value);
+          }
+
+          if (!allFilled) {
+            const message = document.getElementById('submit-message');
+            message.textContent = '모든 답안을 입력해주세요.';
+            message.style.backgroundColor = '#ef4444';
+            message.classList.remove('hidden');
+            setTimeout(() => message.classList.add('hidden'), 3000);
+            return;
+          }
+
+          const submitBtn = document.getElementById('submit-btn');
+          submitBtn.disabled = true;
+          submitBtn.style.opacity = '0.5';
+          submitBtn.textContent = '제출 중...';
+
+          const score = calculateScore(currentStudentData.subject, answers);
+          
+          const record = {
+            id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+            student_name: currentStudentData.name,
+            class_number: currentStudentData.classNumber,
+            seat_number: currentStudentData.seatNumber,
+            subject: currentStudentData.subject,
+            answers: answers.join(','),
+            score: score,
+            submitted_at: new Date().toISOString()
+          };
+
+          if (allRecords.length >= 999) {
+            const message = document.getElementById('submit-message');
+            message.textContent = '최대 999개의 기록에 도달했습니다. 관리자에게 문의하세요.';
+            message.style.backgroundColor = '#ef4444';
+            message.classList.remove('hidden');
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.textContent = config.submit_button_text || defaultConfig.submit_button_text;
+            return;
+          }
+
+          const result = await window.dataSdk.create(record);
+          
+          if (result.isOk) {
+            const message = document.getElementById('submit-message');
+            message.textContent = '응시가 완료되었습니다!';
+            message.style.backgroundColor = primaryColor;
+            message.classList.remove('hidden');
+            
+            setTimeout(() => {
+              currentView = 'menu';
+              currentStudentData = null;
+              renderApp();
+            }, 2000);
+          } else {
+            const message = document.getElementById('submit-message');
+            message.textContent = '제출 중 오류가 발생했습니다. 다시 시도해주세요.';
+            message.style.backgroundColor = '#ef4444';
+            message.classList.remove('hidden');
+            submitBtn.disabled = false;
+            submitBtn.style.opacity = '1';
+            submitBtn.textContent = config.submit_button_text || defaultConfig.submit_button_text;
+          }
+        });
+      }
+    }
+
+    function calculateScore(subject, answers) {
+      const masterAnswers = MASTER_ANSWERS[subject];
+      let score = 0;
+      for (let i = 0; i < 25; i++) {
+        if (parseInt(answers[i]) === masterAnswers[i]) {
+          score += 4;
+        }
+      }
+      return score;
+    }
+
+    function renderTeacherLogin() {
+      const app = document.getElementById('app');
+      const config = window.elementSdk?.config || defaultConfig;
+      const fontSize = config.font_size || defaultConfig.font_size;
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const secondaryColor = config.secondary_action_color || defaultConfig.secondary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+
+      app.innerHTML = `
+        <div class="min-h-full flex items-center justify-center p-4">
+          <div class="w-full max-w-md p-8 rounded-2xl shadow-lg" style="background-color: ${surfaceColor};">
+            <h2 class="font-bold mb-6" style="font-size: ${fontSize * 1.5}px;">교사 로그인</h2>
+            <form id="teacher-login-form" class="space-y-4">
+              <div>
+                <label for="password" class="block mb-2 font-medium" style="font-size: ${fontSize}px;">비밀번호</label>
+                <input type="password" id="password" required class="w-full p-3 border-2 rounded-lg" style="font-size: ${fontSize}px; border-color: ${secondaryColor};" placeholder="비밀번호 입력">
+              </div>
+              <div id="error-message" class="p-3 rounded-lg text-center font-semibold hidden" style="background-color: #ef4444; color: white; font-size: ${fontSize * 0.875}px;"></div>
+              <div class="flex gap-3 pt-4">
+                <button type="button" id="back-login-btn" class="flex-1 py-3 px-6 rounded-lg font-semibold text-white transition-all hover:opacity-90" style="background-color: ${secondaryColor}; font-size: ${fontSize}px;">
+                  뒤  
+                </button>
+                <button type="submit" class="flex-1 py-3 px-6 rounded-lg font-semibold text-white transition-all hover:opacity-90" style="background-color: ${primaryColor}; font-size: ${fontSize}px;">
+                  로그인
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('back-login-btn').addEventListener('click', () => {
+        currentView = 'menu';
+        renderApp();
+      });
+
+      document.getElementById('teacher-login-form').addEventListener('submit', (e) => {
+        e.preventDefault();
+        const password = document.getElementById('password').value;
+        if (password === TEACHER_PASSWORD) {
+          currentView = 'teacher';
+          renderApp();
+        } else {
+          const errorMsg = document.getElementById('error-message');
+          errorMsg.textContent = '비밀번호가 올바르   않습니다.';
+          errorMsg.classList.remove('hidden');
+          setTimeout(() => errorMsg.classList.add('hidden'), 3000);
+        }
+      });
+    }
+
+    function renderTeacherDashboard() {
+      const app = document.getElementById('app');
+      const config = window.elementSdk?.config || defaultConfig;
+      const fontSize = config.font_size || defaultConfig.font_size;
+      const primaryColor = config.primary_action_color || defaultConfig.primary_action_color;
+      const secondaryColor = config.secondary_action_color || defaultConfig.secondary_action_color;
+      const surfaceColor = config.surface_color || defaultConfig.surface_color;
+
+      const selectedClass = parseInt(document.getElementById('class-filter')?.value || '0');
+      const selectedSubject = document.getElementById('subject-filter')?.value || 'all';
+      
+      let filteredRecords = allRecords;
+      if (selectedClass > 0) {
+        filteredRecords = filteredRecords.filter(r => r.class_number === selectedClass);
+      }
+      if (selectedSubject !== 'all') {
+        filteredRecords = filteredRecords.filter(r => r.subject === selectedSubject);
+      }
+
+      const studentScores = {};
+      filteredRecords.forEach(record => {
+        const key = `${record.class_number}-${record.seat_number}-${record.student_name}`;
+        if (!studentScores[key]) {
+          studentScores[key] = {
+            name: record.student_name,
+            classNumber: record.class_number,
+            seatNumber: record.seat_number,
+            korean: null,
+            math: null,
+            english: null,
+            total: 0
+          };
+        }
+        studentScores[key][record.subject] = record.score;
+      });
+
+      Object.values(studentScores).forEach(student => {
+        student.total = (student.korean || 0) + (student.math || 0) + (student.english || 0);
+      });
+
+      const studentsArray = Object.values(studentScores).sort((a, b) => b.total - a.total);
+
+      app.innerHTML = `
+        <div class="min-h-full p-4">
+          <div class="max-w-7xl mx-auto">
+            <div class="p-6 rounded-2xl shadow-lg mb-6" style="background-color: ${surfaceColor};">
+              <div class="flex justify-between items-center mb-6">
+                <h2 class="font-bold" style="font-size: ${fontSize * 1.5}px;">${config.teacher_title || defaultConfig.teacher_title}</h2>
+                <button id="logout-btn" class="py-2 px-4 rounded-lg font-semibold text-white transition-all hover:opacity-90" style="background-color: ${secondaryColor}; font-size: ${fontSize * 0.875}px;">
+                  로그아웃
+                </button>
+              </div>
+              
+              <div class="flex gap-4 mb-4">
+                <div class="flex-1">
+                  <label for="class-filter" class="block mb-2 font-medium" style="font-size: ${fontSize * 0.875}px;">학급 필터</label>
+                  <select id="class-filter" class="w-full p-2 border-2 rounded-lg" style="font-size: ${fontSize}px; border-color: ${secondaryColor};">
+                    <option value="0">전체 학급</option>
+                    ${[1,2,3,4,5,6,7,8,9].map(n => `<option value="${n}" ${selectedClass === n ? 'selected' : ''}>${n}반</option>`).join('')}
+                  </select>
+                </div>
+                <div class="flex-1">
+                  <label for="subject-filter" class="block mb-2 font-medium" style="font-size: ${fontSize * 0.875}px;">과목 필터</label>
+                  <select id="subject-filter" class="w-full p-2 border-2 rounded-lg" style="font-size: ${fontSize}px; border-color: ${secondaryColor};">
+                    <option value="all" ${selectedSubject === 'all' ? 'selected' : ''}>전체 과목</option>
+                    <option value="korean" ${selectedSubject === 'korean' ? 'selected' : ''}>국어</option>
+                    <option value="math" ${selectedSubject === 'math' ? 'selected' : ''}>수학</option>
+                    <option value="english" ${selectedSubject === 'english' ? 'selected' : ''}>영어</option>
+                  </select>
+                </div>
+              </div>
+
+              <div class="grid grid-cols-4 gap-4 mb-6">
+                <div class="p-4 rounded-lg" style="background-color: ${primaryColor}; color: white;">
+                  <div style="font-size: ${fontSize * 0.75}px; opacity: 0.9;">총 응시 학생</div>
+                  <div class="font-bold" style="font-size: ${fontSize * 1.5}px;">${studentsArray.length}명</div>
+                </div>
+                <div class="p-4 rounded-lg" style="background-color: ${primaryColor}; color: white;">
+                  <div style="font-size: ${fontSize * 0.75}px; opacity: 0.9;">평균 점수</div>
+                  <div class="font-bold" style="font-size: ${fontSize * 1.5}px;">${studentsArray.length > 0 ? (studentsArray.reduce((sum, s) => sum + s.total, 0) / studentsArray.length).toFixed(1) : 0}점</div>
+                </div>
+                <div class="p-4 rounded-lg" style="background-color: ${primaryColor}; color: white;">
+                  <div style="font-size: ${fontSize * 0.75}px; opacity: 0.9;">최고 점수</div>
+                  <div class="font-bold" style="font-size: ${fontSize * 1.5}px;">${studentsArray.length > 0 ? studentsArray[0].total : 0}점</div>
+                </div>
+                <div class="p-4 rounded-lg" style="background-color: ${primaryColor}; color: white;">
+                  <div style="font-size: ${fontSize * 0.75}px; opacity: 0.9;">최저 점수</div>
+                  <div class="font-bold" style="font-size: ${fontSize * 1.5}px;">${studentsArray.length > 0 ? studentsArray[studentsArray.length - 1].total : 0}점</div>
+                </div>
+              </div>
+            </div>
+
+            <div class="mb-6">
+              <div class="flex gap-3 mb-4">
+                <button id="view-scores-btn" class="py-2 px-6 rounded-lg font-semibold text-white transition-all" style="background-color: ${primaryColor}; font-size: ${fontSize}px;">
+                  학생별 성적
+                </button>
+                <button id="view-items-btn" class="py-2 px-6 rounded-lg font-semibold transition-all" style="background-color: ${surfaceColor}; color: ${secondaryColor}; border: 2px solid ${secondaryColor}; font-size: ${fontSize}px;">
+                  문항별 정오표
+                </button>
+              </div>
+            </div>
+
+            <div id="scores-view" class="p-6 rounded-2xl shadow-lg overflow-x-auto" style="background-color: ${surfaceColor};">
+              <h3 class="font-bold mb-4" style="font-size: ${fontSize * 1.25}px;">학생별 성적</h3>
+              <table class="w-full">
+                <thead>
+                  <tr style="border-bottom: 2px solid ${secondaryColor};">
+                    <th class="p-3 text-left font-semibold" style="font-size: ${fontSize * 0.875}px;">순위</th>
+                    <th class="p-3 text-left font-semibold" style="font-size: ${fontSize * 0.875}px;">학급</th>
+                    <th class="p-3 text-left font-semibold" style="font-size: ${fontSize * 0.875}px;">번호</th>
+                    <th class="p-3 text-left font-semibold" style="font-size: ${fontSize * 0.875}px;">이름</th>
+                    <th class="p-3 text-center font-semibold" style="font-size: ${fontSize * 0.875}px;">국어</th>
+                    <th class="p-3 text-center font-semibold" style="font-size: ${fontSize * 0.875}px;">수학</th>
+                    <th class="p-3 text-center font-semibold" style="font-size: ${fontSize * 0.875}px;">영어</th>
+                    <th class="p-3 text-center font-semibold" style="font-size: ${fontSize * 0.875}px;">합계</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${studentsArray.map((student, index) => `
+                    <tr style="border-bottom: 1px solid ${secondaryColor};">
+                      <td class="p-3" style="font-size: ${fontSize}px;">${index + 1}</td>
+                      <td class="p-3" style="font-size: ${fontSize}px;">${student.classNumber}반</td>
+                      <td class="p-3" style="font-size: ${fontSize}px;">${student.seatNumber}번</td>
+                      <td class="p-3" style="font-size: ${fontSize}px;">${student.name}</td>
+                      <td class="p-3 text-center" style="font-size: ${fontSize}px;">${student.korean !== null ? student.korean : '-'}</td>
+                      <td class="p-3 text-center" style="font-size: ${fontSize}px;">${student.math !== null ? student.math : '-'}</td>
+                      <td class="p-3 text-center" style="font-size: ${fontSize}px;">${student.english !== null ? student.english : '-'}</td>
+                      <td class="p-3 text-center font-bold" style="font-size: ${fontSize}px;">${student.total}</td>
+                    </tr>
+                  `).join('')}
+                </tbody>
+              </table>
+              ${studentsArray.length === 0 ? `<p class="text-center py-8" style="font-size: ${fontSize}px; opacity: 0.6;">아직 제출된 답안이 없습니다.</p>` : ''}
+            </div>
+
+            <div id="items-view" class="p-6 rounded-2xl shadow-lg overflow-x-auto hidden" style="background-color: ${surfaceColor};">
+              <h3 class="font-bold mb-4" style="font-size: ${fontSize * 1.25}px;">문항별 정오표</h3>
+              
+              <div class="mb-4">
+                <label for="subject-detail-filter" class="block mb-2 font-medium" style="font-size: ${fontSize * 0.875}px;">과목 선택</label>
+                <select id="subject-detail-filter" class="p-2 border-2 rounded-lg" style="font-size: ${fontSize}px; border-color: ${secondaryColor};">
+                  <option value="korean">국어</option>
+                  <option value="math">수학</option>
+                  <option value="english">영어</option>
+                </select>
+              </div>
+
+              <div id="items-table-container"></div>
+            </div>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('logout-btn').addEventListener('click', () => {
+        currentView = 'menu';
+        renderApp();
+      });
+
+      document.getElementById('class-filter').addEventListener('change', () => {
+        renderTeacherDashboard();
+      });
+
+      document.getElementById('subject-filter').addEventListener('change', () => {
+        renderTeacherDashboard();
+      });
+
+      document.getElementById('view-scores-btn').addEventListener('click', () => {
+        document.getElementById('scores-view').classList.remove('hidden');
+        document.getElementById('items-view').classList.add('hidden');
+        document.getElementById('view-scores-btn').style.backgroundColor = primaryColor;
+        document.getElementById('view-scores-btn').style.color = 'white';
+        document.getElementById('view-scores-btn').style.border = 'none';
+        document.getElementById('view-items-btn').style.backgroundColor = surfaceColor;
+        document.getElementById('view-items-btn').style.color = secondaryColor;
+        document.getElementById('view-items-btn').style.border = `2px solid ${secondaryColor}`;
+      });
+
+      document.getElementById('view-items-btn').addEventListener('click', () => {
+        document.getElementById('scores-view').classList.add('hidden');
+        document.getElementById('items-view').classList.remove('hidden');
+        document.getElementById('view-items-btn').style.backgroundColor = primaryColor;
+        document.getElementById('view-items-btn').style.color = 'white';
+        document.getElementById('view-items-btn').style.border = 'none';
+        document.getElementById('view-scores-btn').style.backgroundColor = surfaceColor;
+        document.getElementById('view-scores-btn').style.color = secondaryColor;
+        document.getElementById('view-scores-btn').style.border = `2px solid ${secondaryColor}`;
+        renderItemsTable('korean');
+      });
+
+      document.getElementById('subject-detail-filter').addEventListener('change', (e) => {
+        renderItemsTable(e.target.value);
+      });
+
+      function renderItemsTable(subject) {
+        const subjectRecords = filteredRecords.filter(r => r.subject === subject);
+        const subjectName = subject === 'korean' ? '국어' : subject === 'math' ? '수학' : '영어';
+        const masterAnswers = MASTER_ANSWERS[subject];
+
+        if (subjectRecords.length === 0) {
+          document.getElementById('items-table-container').innerHTML = `
+            <p class="text-center py-8" style="font-size: ${fontSize}px; opacity: 0.6;">${subjectName} 과목의 제출된 답안이 없습니다.</p>
+          `;
+          return;
+        }
+
+        const sortedRecords = [...subjectRecords].sort((a, b) => {
+          if (a.class_number !== b.class_number) return a.class_number - b.class_number;
+          return a.seat_number - b.seat_number;
+        });
+
+        let tableHTML = `
+          <div class="mb-4 p-4 rounded-lg" style="background-color: ${primaryColor}20;">
+            <p class="font-semibold" style="font-size: ${fontSize}px;">정답: ${masterAnswers.join(', ')}</p>
+          </div>
+          <table class="w-full">
+            <thead>
+              <tr style="border-bottom: 2px solid ${secondaryColor};">
+                <th class="p-2 text-left font-semibold" style="font-size: ${fontSize * 0.875}px;">학급</th>
+                <th class="p-2 text-left font-semibold" style="font-size: ${fontSize * 0.875}px;">번호</th>
+                <th class="p-2 text-left font-semibold" style="font-size: ${fontSize * 0.875}px;">이름</th>
+                ${Array.from({length: 25}, (_, i) => `
+                  <th class="p-2 text-center font-semibold" style="font-size: ${fontSize * 0.75}px;">${i + 1}</th>
+                `).join('')}
+                <th class="p-2 text-center font-semibold" style="font-size: ${fontSize * 0.875}px;">점수</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${sortedRecords.map(record => {
+                const studentAnswers = record.answers.split(',').map(a => parseInt(a.trim()));
+                return `
+                  <tr style="border-bottom: 1px solid ${secondaryColor};">
+                    <td class="p-2" style="font-size: ${fontSize * 0.875}px;">${record.class_number}반</td>
+                    <td class="p-2" style="font-size: ${fontSize * 0.875}px;">${record.seat_number}</td>
+                    <td class="p-2" style="font-size: ${fontSize * 0.875}px;">${record.student_name}</td>
+                    ${studentAnswers.map((answer, idx) => {
+                      const isCorrect = answer === masterAnswers[idx];
+                      return `
+                        <td class="p-2 text-center font-bold" style="font-size: ${fontSize * 0.875}px; color: ${isCorrect ? '#10b981' : '#ef4444'};">
+                          ${isCorrect ? 'O' : 'X'}
+                        </td>
+                      `;
+                    }).join('')}
+                    <td class="p-2 text-center font-bold" style="font-size: ${fontSize * 0.875}px;">${record.score}</td>
+                  </tr>
+                `;
+              }).join('')}
+            </tbody>
+          </table>
+        `;
+
+        document.getElementById('items-table-container').innerHTML = tableHTML;
+      }
+    }
+
+    async function onConfigChange(config) {
+      renderApp();
+    }
+
+    const capabilities = {
+      recolorables: [
+        {
+          get: () => window.elementSdk?.config?.background_color || defaultConfig.background_color,
+          set: (value) => {
+            if (window.elementSdk) {
+              window.elementSdk.setConfig({ background_color: value });
+            }
+          }
+        },
+        {
+          get: () => window.elementSdk?.config?.surface_color || defaultConfig.surface_color,
+          set: (value) => {
+            if (window.elementSdk) {
+              window.elementSdk.setConfig({ surface_color: value });
+            }
+          }
+        },
+        {
+          get: () => window.elementSdk?.config?.text_color || defaultConfig.text_color,
+          set: (value) => {
+            if (window.elementSdk) {
+              window.elementSdk.setConfig({ text_color: value });
+            }
+          }
+        },
+        {
+          get: () => window.elementSdk?.config?.primary_action_color || defaultConfig.primary_action_color,
+          set: (value) => {
+            if (window.elementSdk) {
+              window.elementSdk.setConfig({ primary_action_color: value });
+            }
+          }
+        },
+        {
+          get: () => window.elementSdk?.config?.secondary_action_color || defaultConfig.secondary_action_color,
+          set: (value) => {
+            if (window.elementSdk) {
+              window.elementSdk.setConfig({ secondary_action_color: value });
+            }
+          }
+        }
+      ],
+      borderables: [],
+      fontEditable: {
+        get: () => window.elementSdk?.config?.font_family || defaultConfig.font_family,
+        set: (value) => {
+          if (window.elementSdk) {
+            window.elementSdk.setConfig({ font_family: value });
+          }
+        }
+      },
+      fontSizeable: {
+        get: () => window.elementSdk?.config?.font_size || defaultConfig.font_size,
+        set: (value) => {
+          if (window.elementSdk) {
+            window.elementSdk.setConfig({ font_size: value });
+          }
+        }
+      }
+    };
+
+    function mapToEditPanelValues(config) {
+      return new Map([
+        ['app_title', config.app_title || defaultConfig.app_title],
+        ['student_title', config.student_title || defaultConfig.student_title],
+        ['submit_button_text', config.submit_button_text || defaultConfig.submit_button_text],
+        ['teacher_title', config.teacher_title || defaultConfig.teacher_title]
+      ]);
+    }
+
+    if (window.elementSdk) {
+      window.elementSdk.init({
+        defaultConfig,
+        onConfigChange,
+        mapToCapabilities: () => capabilities,
+        mapToEditPanelValues
+      });
+    }
+
+    initApp();
+  </script>
+ <script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9c3f04fda47febe0',t:'MTc2OTQyMDExOS4wMDAwMDA='};var a=document.createElement('script');a.nonce='';a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
