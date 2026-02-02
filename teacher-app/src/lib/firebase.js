@@ -292,6 +292,78 @@ export const createExam = async (classId, examData) => {
 };
 
 /**
+ * 시험 수정
+ */
+export const updateExam = async (examId, classId, examData) => {
+    try {
+        // 새 형식 (questions 배열)
+        if (examData.questions) {
+            const legacyAnswers = examData.questions.map(q => {
+                if (q.type === 'essay') return null;
+                if (q.correctAnswers && q.correctAnswers.length > 0) {
+                    return q.correctAnswers[0];
+                }
+                return 0;
+            });
+
+            const questionTypes = examData.questions.map(q => ({
+                num: q.num,
+                type: q.type,
+                points: q.points,
+                isMultipleAnswer: q.isMultipleAnswer || false
+            }));
+
+            await updateDoc(doc(db, 'exams', examId), {
+                subject: examData.subject,
+                title: examData.title,
+                defaultType: examData.defaultType,
+                questionCount: examData.questionCount,
+                totalPoints: examData.totalPoints,
+                autoGradablePoints: examData.autoGradablePoints,
+                manualGradablePoints: examData.manualGradablePoints,
+                timeLimit: examData.timeLimit || 0,
+                questionTypes: questionTypes,
+                answers: legacyAnswers,
+                pointsPerQuestion: Math.round(examData.totalPoints / examData.questionCount),
+                updatedAt: serverTimestamp()
+            });
+
+            await setDoc(doc(db, 'examAnswers', examId), {
+                examId: examId,
+                classId,
+                questions: examData.questions,
+                answers: legacyAnswers,
+                updatedAt: serverTimestamp()
+            }, { merge: true });
+
+            return { error: null };
+        }
+
+        // 기존 형식
+        await updateDoc(doc(db, 'exams', examId), {
+            subject: examData.subject,
+            title: examData.title,
+            answers: examData.answers,
+            questionCount: examData.answers.length,
+            pointsPerQuestion: examData.pointsPerQuestion || 4,
+            timeLimit: examData.timeLimit || 0,
+            updatedAt: serverTimestamp()
+        });
+
+        await setDoc(doc(db, 'examAnswers', examId), {
+            examId: examId,
+            classId,
+            answers: examData.answers,
+            updatedAt: serverTimestamp()
+        }, { merge: true });
+
+        return { error: null };
+    } catch (error) {
+        return { error: error.message };
+    }
+};
+
+/**
  * 학급의 시험 목록 조회 (실시간)
  */
 export const subscribeToExams = (classId, callback) => {

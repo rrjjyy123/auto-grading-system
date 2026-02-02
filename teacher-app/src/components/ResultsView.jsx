@@ -13,6 +13,29 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
     // 미채점 제출물 수
     const ungradedCount = submissions.filter(s => !s.graded).length
 
+    // 서술형 문항 있는지 확인
+    const hasEssayQuestions = answerData?.questions?.some(q => q.type === 'essay') || false
+
+    // 서술형 없는 시험의 미채점 제출물 자동 채점
+    useEffect(() => {
+        if (!answerData || hasEssayQuestions) return
+
+        const ungradedSubmissions = submissions.filter(s => !s.graded)
+        if (ungradedSubmissions.length === 0) return
+
+        // 자동 채점 실행
+        const autoGrade = async () => {
+            setGrading(true)
+            const { error } = await gradeAllSubmissions(examData.id, ungradedSubmissions, answerData)
+            if (!error && onRefresh) {
+                onRefresh()
+            }
+            setGrading(false)
+        }
+
+        autoGrade()
+    }, [submissions.length, hasEssayQuestions, answerData])
+
     // 제출물 채점 처리
     useEffect(() => {
         if (!answerData) return
@@ -208,7 +231,8 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                             </p>
                         </div>
                         <div className="flex gap-2">
-                            {ungradedCount > 0 && (
+                            {/* 서술형 있는 시험만 수동 채점 버튼 표시 */}
+                            {ungradedCount > 0 && hasEssayQuestions && (
                                 <button
                                     onClick={handleGradeAll}
                                     disabled={grading}
@@ -216,6 +240,12 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                                 >
                                     {grading ? '채점 중...' : `📝 ${ungradedCount}개 채점`}
                                 </button>
+                            )}
+                            {/* 서술형 없는 시험은 자동 채점 중 표시 */}
+                            {grading && !hasEssayQuestions && (
+                                <span className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg font-semibold">
+                                    ⏳ 자동 채점 중...
+                                </span>
                             )}
                             <button
                                 onClick={handleExportExcel}

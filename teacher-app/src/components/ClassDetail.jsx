@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import {
     subscribeToExams,
     createExam,
+    updateExam,
     deleteExam,
     toggleExamActive,
     subscribeToClassSubmissions,
@@ -9,6 +10,7 @@ import {
 } from '../lib/firebase'
 import ResultsView from './ResultsView'
 import ExamCreateModal from './ExamCreateModal'
+import ExamEditModal from './ExamEditModal'
 
 function ClassDetail({ classData, onBack }) {
     const [exams, setExams] = useState([])
@@ -16,6 +18,7 @@ function ClassDetail({ classData, onBack }) {
     const [loading, setLoading] = useState(true)
     const [showCreateExam, setShowCreateExam] = useState(false)
     const [selectedExam, setSelectedExam] = useState(null)
+    const [editingExam, setEditingExam] = useState(null)
 
     useEffect(() => {
         const unsubExams = subscribeToExams(classData.id, (examList) => {
@@ -51,6 +54,29 @@ function ClassDetail({ classData, onBack }) {
         if (error) {
             alert('삭제 실패: ' + error)
         }
+    }
+
+    // 시험 수정 핸들러
+    const handleEditExam = async (exam) => {
+        const { data, error } = await getExamAnswers(exam.id)
+        if (error && !exam.answers) {
+            alert('정답 로딩 실패: ' + error)
+            return
+        }
+        setEditingExam({
+            exam,
+            answerData: data || { answers: exam.answers }
+        })
+    }
+
+    const handleUpdateExam = async (examData) => {
+        const { error } = await updateExam(editingExam.exam.id, classData.id, examData)
+        if (error) {
+            alert('시험 수정 실패: ' + error)
+            return
+        }
+        setEditingExam(null)
+        alert('시험이 수정되었습니다!')
     }
 
     const getExamSubmissionCount = (examId) => {
@@ -222,6 +248,12 @@ function ClassDetail({ classData, onBack }) {
                                                 {exam.isActive ? '마감하기' : '재개하기'}
                                             </button>
                                             <button
+                                                onClick={() => handleEditExam(exam)}
+                                                className="px-4 py-2 bg-purple-100 text-purple-600 rounded-lg font-semibold hover:bg-purple-200 transition-colors text-sm"
+                                            >
+                                                ✏️ 수정
+                                            </button>
+                                            <button
                                                 onClick={() => handleDeleteExam(exam.id, exam.title)}
                                                 className="px-4 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200 transition-colors text-sm"
                                             >
@@ -242,6 +274,16 @@ function ClassDetail({ classData, onBack }) {
                     classData={classData}
                     onClose={() => setShowCreateExam(false)}
                     onSubmit={handleCreateExam}
+                />
+            )}
+
+            {/* 시험 수정 모달 */}
+            {editingExam && (
+                <ExamEditModal
+                    exam={editingExam.exam}
+                    answerData={editingExam.answerData}
+                    onSave={handleUpdateExam}
+                    onClose={() => setEditingExam(null)}
                 />
             )}
         </div>

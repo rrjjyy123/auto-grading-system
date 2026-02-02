@@ -221,6 +221,12 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
                                 {question.points}점
                             </span>
                         )}
+                        {/* 복수선택 표시 */}
+                        {question.isMultipleAnswer && (
+                            <span className="text-xs text-orange-600 font-semibold mt-1">
+                                복수
+                            </span>
+                        )}
                     </div>
 
                     {/* 답안 입력 영역 */}
