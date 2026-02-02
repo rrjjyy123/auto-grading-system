@@ -76,25 +76,18 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
             const newAnswers = [...prev]
             const currentAnswer = newAnswers[qIndex]
 
-            // 복수선택 가능 여부 확인
-            const isMultiple = question.isMultipleAnswer ||
-                (question.correctAnswers && question.correctAnswers.length > 1)
+            // 모든 문항 복수 선택 허용 (OMR 방식)
+            // 정답이 하나인 문항도 학생이 실수로 2개를 마킹할 수 있음 -> 그러면 오답 처리됨
+            const isMultiple = true
 
             if (isMultiple) {
-                // 복수선택 모드
+                // 복수선택 모드 (항상 적용)
                 if (Array.isArray(currentAnswer)) {
                     if (currentAnswer.includes(value)) {
                         newAnswers[qIndex] = currentAnswer.filter(v => v !== value)
                     } else {
                         newAnswers[qIndex] = [...currentAnswer, value].sort((a, b) => a - b)
                     }
-                } else {
-                    newAnswers[qIndex] = [value]
-                }
-            } else {
-                // 단일선택 모드
-                if (Array.isArray(currentAnswer) && currentAnswer.includes(value)) {
-                    newAnswers[qIndex] = []
                 } else {
                     newAnswers[qIndex] = [value]
                 }
@@ -221,12 +214,7 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
                                 {question.points}점
                             </span>
                         )}
-                        {/* 복수선택 표시 */}
-                        {question.isMultipleAnswer && (
-                            <span className="text-xs text-orange-600 font-semibold mt-1">
-                                복수
-                            </span>
-                        )}
+                        {/* 복수선택 표시 제거 (사용자 요청) */}
                     </div>
 
                     {/* 답안 입력 영역 */}

@@ -566,7 +566,16 @@ const gradeQuestion = (question, studentAnswer) => {
         case 'choice5':
             return gradeChoice(correctAnswers, studentAnswer, answerLogic);
         case 'ox':
-            return correctAnswers[0] === studentAnswer;
+            const correct = correctAnswers[0];
+            const student = Array.isArray(studentAnswer) ? studentAnswer[0] : studentAnswer;
+            // O, 'O', true 모두 O로 취급
+            // X, 'X', false 모두 X로 취급
+            const isO = (val) => val === 'O' || val === true;
+            const isX = (val) => val === 'X' || val === false;
+
+            if (isO(correct)) return isO(student);
+            if (isX(correct)) return isX(student);
+            return correct === student;
         case 'short':
             return gradeShortAnswer(correctAnswers, studentAnswer, answerLogic);
         default:
@@ -578,7 +587,10 @@ const gradeQuestion = (question, studentAnswer) => {
  * 객관식 채점 (AND/OR)
  */
 const gradeChoice = (correctAnswers, studentAnswer, logic) => {
-    const student = Array.isArray(studentAnswer) ? studentAnswer : [studentAnswer];
+    // studentAnswer가 null/undefined인 경우 빈 배열 처리
+    const student = Array.isArray(studentAnswer)
+        ? studentAnswer
+        : (studentAnswer ? [studentAnswer] : []);
 
     if (logic === 'or') {
         return student.some(a => correctAnswers.includes(a));
