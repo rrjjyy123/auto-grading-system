@@ -110,43 +110,90 @@ export const checkExistingSubmission = async (examId, studentNumber) => {
 };
 
 /**
- * 답안 제출
+ * 시험 문항 정보 가져오기 (exams 컬렉션에서)
+ * 
+ * 보안 정책: 정답은 examAnswers에 있으며, 학생은 접근 불가
+ * exams 컬렉션의 questionTypes만 사용
+ */
+export const getExamQuestions = async (examId) => {
+    try {
+        const examDoc = await getDoc(doc(db, 'exams', examId));
+        if (!examDoc.exists()) {
+            return { data: null, error: '시험을 찾을 수 없습니다.' };
+        }
+
+        const data = examDoc.data();
+
+        // 새 형식 (questionTypes가 있는 경우)
+        if (data.questionTypes) {
+            return {
+                data: { questions: data.questionTypes },
+                error: null
+            };
+        }
+
+        // 기존 형식 - 4지선다로 처리
+        return { data: null, error: null };
+    } catch (error) {
+        console.error('Error fetching exam questions:', error);
+        return { data: null, error: error.message };
+    }
+};
+
+/**
+ * 답안 제출 (채점 없음 - 보안 강화)
+ * 
+ * 보안 정책: 
+ * - 학생 앱에서는 정답(examAnswers)에 접근하지 않음
+ * - 채점은 선생님 앱에서만 수행됨
  */
 export const submitAnswers = async (examId, classId, studentNumber, studentCode, answers) => {
     try {
-        // 시험 정보 가져오기 (채점용)
+        // 시험 정보 가져오기 (정답 아님, 메타데이터만)
         const examDoc = await getDoc(doc(db, 'exams', examId));
         if (!examDoc.exists()) {
             return { success: false, error: '시험을 찾을 수 없습니다.' };
         }
         const examData = examDoc.data();
 
-        // 채점
-        let correctCount = 0;
-        answers.forEach((answer, idx) => {
-            if (answer === examData.answers[idx]) {
-                correctCount++;
-            }
-        });
-        const score = correctCount * examData.pointsPerQuestion;
+        // 서술형 문항 수 계산 (새 형식인 경우)
+        let essayCount = 0;
+        let hasEssay = false;
 
-        // 제출 저장
+        if (Array.isArray(answers) && answers[0]?.type !== undefined) {
+            answers.forEach((ans) => {
+                if (ans.type === 'essay') {
+                    essayCount++;
+                    hasEssay = true;
+                }
+            });
+        }
+
+        // 제출 저장 (채점 정보 없이 답안만)
         await addDoc(collection(db, 'submissions'), {
             examId,
             classId,
             studentNumber,
             studentCode,
             answers,
-            correctCount,
-            score,
+            // 채점 관련 필드 - 선생님이 채점 후 업데이트
+            score: null,
+            correctCount: null,
+            autoScore: null,
+            hasEssay,
+            essayCount,
+            graded: false, // 채점 완료 여부
+            manualScores: {},
+            manualGradingComplete: false,
             submittedAt: serverTimestamp()
         });
 
         return {
             success: true,
-            score,
-            correctCount,
+            submitted: true,
             totalQuestions: examData.questionCount,
+            hasEssay,
+            essayCount,
             error: null
         };
     } catch (error) {

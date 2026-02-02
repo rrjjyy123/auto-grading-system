@@ -90,8 +90,8 @@ function SubjectSelect({ studentData, onSelectExam, onBack }) {
                                         onClick={() => handleSelectExam(exam)}
                                         disabled={isSubmitted}
                                         className={`w-full p-4 rounded-xl text-left transition-all ${isSubmitted
-                                                ? 'bg-gray-100 cursor-not-allowed'
-                                                : 'bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 hover:border-blue-400'
+                                            ? 'bg-gray-100 cursor-not-allowed'
+                                            : 'bg-blue-50 hover:bg-blue-100 border-2 border-blue-200 hover:border-blue-400'
                                             }`}
                                     >
                                         <div className="flex items-center justify-between">
@@ -108,7 +108,8 @@ function SubjectSelect({ studentData, onSelectExam, onBack }) {
                                                 </div>
                                                 <h3 className="font-bold text-gray-800">{exam.title}</h3>
                                                 <p className="text-sm text-gray-500">
-                                                    {exam.questionCount}문항 • {exam.questionCount * exam.pointsPerQuestion}점 만점
+                                                    {exam.questionCount}문항 • {exam.totalPoints || (exam.questionCount * exam.pointsPerQuestion)}점 만점
+                                                    {exam.manualGradablePoints > 0 && ` (서술형 포함)`}
                                                     {exam.timeLimit > 0 && ` • ${exam.timeLimit}분`}
                                                 </p>
                                             </div>

@@ -3,6 +3,7 @@ import CodeEntry from './components/CodeEntry'
 import SubjectSelect from './components/SubjectSelect'
 import AnswerSheet from './components/AnswerSheet'
 import SubmitComplete from './components/SubmitComplete'
+import { getExamQuestions } from './lib/firebase'
 import './index.css'
 
 function App() {
@@ -10,6 +11,7 @@ function App() {
   const [studentData, setStudentData] = useState(null) // { studentCode, classData }
   const [selectedExam, setSelectedExam] = useState(null)
   const [result, setResult] = useState(null)
+  const [loading, setLoading] = useState(false)
 
   // URL에서 코드 파라미터 확인
   useEffect(() => {
@@ -25,8 +27,21 @@ function App() {
     setScreen('subject')
   }
 
-  const handleExamSelected = (exam) => {
-    setSelectedExam(exam)
+  const handleExamSelected = async (exam) => {
+    setLoading(true)
+
+    // 문항 정보 가져오기
+    const { data, error } = await getExamQuestions(exam.id)
+
+    if (data && data.questions) {
+      // 새 형식 - questions 정보 포함
+      setSelectedExam({ ...exam, questions: data.questions })
+    } else {
+      // 기존 형식 또는 에러 시 원래 exam 데이터 사용
+      setSelectedExam(exam)
+    }
+
+    setLoading(false)
     setScreen('answer')
   }
 

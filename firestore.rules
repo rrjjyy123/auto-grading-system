@@ -1,18 +1,96 @@
-rules_version='2'
+rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /{document=**} {
-      // This rule allows anyone with your database reference to view, edit,
-      // and delete all data in your database. It is useful for getting
-      // started, but it is configured to expire after 30 days because it
-      // leaves your app open to attackers. At that time, all client
-      // requests to your database will be denied.
-      //
-      // Make sure to write security rules for your app before that time, or
-      // else all client requests to your database will be denied until you
-      // update your rules.
-      allow read, write: if request.time < timestamp.date(2026, 2, 27);
+    
+    // ==================== 헬퍼 함수 ====================
+    
+    // 로그인된 사용자인지 확인
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // 해당 학급의 소유자(교사)인지 확인
+    function isClassOwner(classId) {
+      return isSignedIn() && 
+             get(/databases/$(database)/documents/classes/$(classId)).data.teacherId == request.auth.uid;
+    }
+    
+    // 본인이 만든 학급인지 확인
+    function isOwnClass() {
+      return isSignedIn() && resource.data.teacherId == request.auth.uid;
+    }
+    
+    // ==================== 학급 (classes) ====================
+    match /classes/{classId} {
+      // 읽기: 모든 사람 (학생이 학급 정보 확인 필요)
+      allow read: if true;
+      
+      // 생성: 로그인한 사용자가 teacherId를 자신으로 설정
+      allow create: if isSignedIn() && 
+                       request.resource.data.teacherId == request.auth.uid;
+      
+      // 수정/삭제: 해당 학급의 소유자만
+      allow update, delete: if isOwnClass();
+    }
+    
+    // ==================== 학생 코드 (studentCodes) ====================
+    match /studentCodes/{codeId} {
+      // 읽기: 모든 사람 (학생이 코드 검증 필요)
+      allow read: if true;
+      
+      // 생성: 해당 학급의 소유자만
+      allow create: if isClassOwner(request.resource.data.classId);
+      
+      // 삭제: 해당 학급의 소유자만
+      allow delete: if isClassOwner(resource.data.classId);
+      
+      // 수정: 불가 (코드 변조 방지)
+      allow update: if false;
+    }
+    
+    // ==================== 시험 (exams) ====================
+    match /exams/{examId} {
+      // 읽기: 모든 사람 (학생이 시험 정보 필요)
+      allow read: if true;
+      
+      // 생성: 해당 학급의 소유자만
+      allow create: if isClassOwner(request.resource.data.classId);
+      
+      // 수정: 해당 학급의 소유자만
+      allow update: if isClassOwner(resource.data.classId);
+      
+      // 삭제: 해당 학급의 소유자만
+      allow delete: if isClassOwner(resource.data.classId);
+    }
+    
+    // ==================== 시험 정답 (examAnswers) ====================
+    // ⚠️ 보안 중요: 교사만 접근 가능 (학생 정답 유출 방지)
+    match /examAnswers/{examId} {
+      // 읽기: 해당 학급의 소유자(교사)만
+      allow read: if isSignedIn() && 
+                     isClassOwner(resource.data.classId);
+      
+      // 쓰기: 해당 학급의 소유자만
+      allow create: if isSignedIn() && 
+                       isClassOwner(request.resource.data.classId);
+      
+      allow update, delete: if isSignedIn() && 
+                               isClassOwner(resource.data.classId);
+    }
+    
+    // ==================== 제출 (submissions) ====================
+    match /submissions/{submissionId} {
+      // 읽기: 해당 학급의 소유자만
+      allow read: if isClassOwner(resource.data.classId);
+      
+      // 생성: 모든 사람 (학생이 인증 없이 제출)
+      // 필수 필드 검증
+      allow create: if request.resource.data.keys().hasAll(['examId', 'classId', 'studentNumber', 'answers']) &&
+                       request.resource.data.answers is list;
+      
+      // 수정/삭제: 해당 학급의 소유자만
+      allow update, delete: if isClassOwner(resource.data.classId);
     }
   }
 }

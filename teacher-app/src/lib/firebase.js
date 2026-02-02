@@ -209,9 +209,63 @@ export const getStudentCodes = async (classId) => {
 
 /**
  * 시험 생성
+ * - 새 형식: questions 배열 (다양한 문제 유형 지원)
+ * - 기존 형식: answers 배열 (하위 호환)
  */
 export const createExam = async (classId, examData) => {
     try {
+        // 새 형식 (questions 배열이 있는 경우)
+        if (examData.questions) {
+            // 기존 형식 호환을 위해 answers 배열도 생성
+            const legacyAnswers = examData.questions.map(q => {
+                if (q.type === 'essay') return null;
+                if (q.correctAnswers && q.correctAnswers.length > 0) {
+                    return q.correctAnswers[0];
+                }
+                return 0;
+            });
+
+            // 학생용 문항 정보 (정답 제외)
+            const questionTypes = examData.questions.map(q => ({
+                num: q.num,
+                type: q.type,
+                points: q.points,
+                isMultipleAnswer: q.isMultipleAnswer || false
+            }));
+
+            const examRef = await addDoc(collection(db, 'exams'), {
+                classId,
+                subject: examData.subject,
+                title: examData.title,
+                defaultType: examData.defaultType,
+                questionCount: examData.questionCount,
+                totalPoints: examData.totalPoints,
+                autoGradablePoints: examData.autoGradablePoints,
+                manualGradablePoints: examData.manualGradablePoints,
+                timeLimit: examData.timeLimit || 0,
+                // 학생용 문항 정보 (정답 포함 안함)
+                questionTypes: questionTypes,
+                // 기존 형식 호환
+                answers: legacyAnswers,
+                pointsPerQuestion: Math.round(examData.totalPoints / examData.questionCount),
+                createdAt: serverTimestamp(),
+                isActive: true
+            });
+
+            // 정답 정보는 별도 컬렉션에만 저장 (보안)
+            await setDoc(doc(db, 'examAnswers', examRef.id), {
+                examId: examRef.id,
+                classId,
+                questions: examData.questions,
+                // 기존 형식 호환
+                answers: legacyAnswers,
+                createdAt: serverTimestamp()
+            });
+
+            return { data: { id: examRef.id }, error: null };
+        }
+
+        // 기존 형식 (answers 배열만 있는 경우) - 하위 호환
         const examRef = await addDoc(collection(db, 'exams'), {
             classId,
             subject: examData.subject,
@@ -223,6 +277,14 @@ export const createExam = async (classId, examData) => {
             createdAt: serverTimestamp(),
             isActive: true
         });
+
+        await setDoc(doc(db, 'examAnswers', examRef.id), {
+            examId: examRef.id,
+            classId,
+            answers: examData.answers,
+            createdAt: serverTimestamp()
+        });
+
         return { data: { id: examRef.id }, error: null };
     } catch (error) {
         return { data: null, error: error.message };
@@ -246,7 +308,7 @@ export const subscribeToExams = (classId, callback) => {
 };
 
 /**
- * 시험 삭제
+ * 시험 삭제 (정답 문서도 함께 삭제)
  */
 export const deleteExam = async (examId) => {
     try {
@@ -255,6 +317,11 @@ export const deleteExam = async (examId) => {
         const submissionsSnapshot = await getDocs(submissionsQuery);
         const batch = writeBatch(db);
         submissionsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+
+        // 정답 문서 삭제
+        batch.delete(doc(db, 'examAnswers', examId));
+
+        // 시험 삭제
         batch.delete(doc(db, 'exams', examId));
         await batch.commit();
         return { error: null };
@@ -309,4 +376,224 @@ export const subscribeToClassSubmissions = (classId, callback) => {
     });
 };
 
+/**
+ * 시험 정답 조회 (별도 컬렉션에서)
+ */
+export const getExamAnswers = async (examId) => {
+    try {
+        const answerDoc = await getDoc(doc(db, 'examAnswers', examId));
+        if (answerDoc.exists()) {
+            return { data: answerDoc.data(), error: null };
+        }
+        return { data: null, error: '정답을 찾을 수 없습니다.' };
+    } catch (error) {
+        return { data: null, error: error.message };
+    }
+};
+
+/**
+ * 제출물 채점 (선생님 앱에서만 호출)
+ * @param {Object} submission - 제출 데이터
+ * @param {Object} answerData - 정답 데이터 (questions 또는 answers)
+ * @returns {Object} 채점 결과 { correctCount, autoScore, itemResults }
+ */
+export const gradeSubmission = (submission, answerData) => {
+    const studentAnswers = submission.answers;
+    let correctCount = 0;
+    let autoScore = 0;
+    const itemResults = [];
+    let hasEssay = false;
+    let essayCount = 0;
+
+    // 새 형식 (questions 배열)
+    if (answerData.questions) {
+        answerData.questions.forEach((question, idx) => {
+            const studentAnswer = studentAnswers[idx];
+
+            if (question.type === 'essay') {
+                // 서술형은 자동채점 안함
+                itemResults.push({
+                    questionNum: idx + 1,
+                    type: 'essay',
+                    studentAnswer: studentAnswer?.value || '',
+                    correct: null,
+                    points: 0,
+                    maxPoints: question.points
+                });
+                hasEssay = true;
+                essayCount++;
+                return;
+            }
+
+            // 자동채점 가능한 문항
+            const isCorrect = gradeQuestion(question, studentAnswer?.value ?? studentAnswer);
+            const earnedPoints = isCorrect ? question.points : 0;
+
+            if (isCorrect) correctCount++;
+            autoScore += earnedPoints;
+
+            itemResults.push({
+                questionNum: idx + 1,
+                type: question.type,
+                correctAnswer: question.correctAnswers,
+                studentAnswer: studentAnswer?.value ?? studentAnswer,
+                correct: isCorrect,
+                points: earnedPoints,
+                maxPoints: question.points
+            });
+        });
+    } else {
+        // 기존 형식 (answers 배열)
+        const correctAnswers = answerData.answers || answerData;
+        const pointsPerQuestion = answerData.pointsPerQuestion || 4;
+
+        correctAnswers.forEach((correctAnswer, idx) => {
+            const studentAnswer = Array.isArray(studentAnswers[idx]?.value)
+                ? studentAnswers[idx].value[0]
+                : (studentAnswers[idx]?.value ?? studentAnswers[idx]);
+
+            const isCorrect = studentAnswer === correctAnswer;
+            if (isCorrect) {
+                correctCount++;
+                autoScore += pointsPerQuestion;
+            }
+
+            itemResults.push({
+                questionNum: idx + 1,
+                type: 'choice4',
+                correctAnswer,
+                studentAnswer,
+                correct: isCorrect,
+                points: isCorrect ? pointsPerQuestion : 0,
+                maxPoints: pointsPerQuestion
+            });
+        });
+    }
+
+    return {
+        correctCount,
+        autoScore,
+        totalScore: autoScore, // 서술형 포함 최종점수는 별도 계산
+        itemResults,
+        hasEssay,
+        essayCount,
+        graded: true
+    };
+};
+
+/**
+ * 문항 채점 로직
+ */
+const gradeQuestion = (question, studentAnswer) => {
+    const { type, correctAnswers, answerLogic } = question;
+
+    if (!correctAnswers || correctAnswers.length === 0) return false;
+
+    switch (type) {
+        case 'choice4':
+        case 'choice5':
+            return gradeChoice(correctAnswers, studentAnswer, answerLogic);
+        case 'ox':
+            return correctAnswers[0] === studentAnswer;
+        case 'short':
+            return gradeShortAnswer(correctAnswers, studentAnswer, answerLogic);
+        default:
+            return false;
+    }
+};
+
+/**
+ * 객관식 채점 (AND/OR)
+ */
+const gradeChoice = (correctAnswers, studentAnswer, logic) => {
+    const student = Array.isArray(studentAnswer) ? studentAnswer : [studentAnswer];
+
+    if (logic === 'or') {
+        return student.some(a => correctAnswers.includes(a));
+    } else {
+        if (correctAnswers.length !== student.length) return false;
+        return correctAnswers.every(a => student.includes(a));
+    }
+};
+
+/**
+ * 단답형 채점
+ */
+const gradeShortAnswer = (correctAnswers, studentAnswer, logic) => {
+    if (!studentAnswer || typeof studentAnswer !== 'string') return false;
+
+    const normalized = studentAnswer.toLowerCase().trim();
+
+    if (logic === 'or') {
+        return correctAnswers.some(ans => ans.toLowerCase().trim() === normalized);
+    } else {
+        return correctAnswers.every(ans => normalized.includes(ans.toLowerCase().trim()));
+    }
+};
+
+/**
+ * 제출물 점수 업데이트 (서술형 수동 채점 포함)
+ */
+export const updateSubmissionScore = async (submissionId, scoreData) => {
+    try {
+        const updateData = {
+            score: scoreData.score,
+            correctCount: scoreData.correctCount,
+            autoScore: scoreData.autoScore,
+            graded: true,
+            gradedAt: serverTimestamp()
+        };
+
+        // 서술형 수동 채점 정보
+        if (scoreData.manualScores !== undefined) {
+            updateData.manualScores = scoreData.manualScores;
+        }
+        if (scoreData.manualGradingComplete !== undefined) {
+            updateData.manualGradingComplete = scoreData.manualGradingComplete;
+        }
+
+        await updateDoc(doc(db, 'submissions', submissionId), updateData);
+        return { error: null };
+    } catch (error) {
+        return { error: error.message };
+    }
+};
+
+/**
+ * 일괄 채점 (미채점 제출물 모두 채점)
+ */
+export const gradeAllSubmissions = async (examId, submissions, answerData) => {
+    const batch = writeBatch(db);
+    const results = [];
+
+    for (const submission of submissions) {
+        if (submission.graded) continue; // 이미 채점된 것은 건너뜀
+
+        const gradeResult = gradeSubmission(submission, answerData);
+
+        const submissionRef = doc(db, 'submissions', submission.id);
+        batch.update(submissionRef, {
+            score: gradeResult.autoScore,
+            correctCount: gradeResult.correctCount,
+            autoScore: gradeResult.autoScore,
+            graded: true,
+            gradedAt: serverTimestamp()
+        });
+
+        results.push({
+            submissionId: submission.id,
+            studentNumber: submission.studentNumber,
+            ...gradeResult
+        });
+    }
+
+    try {
+        await batch.commit();
+        return { results, error: null };
+    } catch (error) {
+        return { results: [], error: error.message };
+    }
+};
+
 export { db, auth };
+

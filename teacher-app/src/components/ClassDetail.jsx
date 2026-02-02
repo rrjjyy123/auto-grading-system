@@ -4,9 +4,11 @@ import {
     createExam,
     deleteExam,
     toggleExamActive,
-    subscribeToClassSubmissions
+    subscribeToClassSubmissions,
+    getExamAnswers
 } from '../lib/firebase'
 import ResultsView from './ResultsView'
+import ExamCreateModal from './ExamCreateModal'
 
 function ClassDetail({ classData, onBack }) {
     const [exams, setExams] = useState([])
@@ -14,15 +16,6 @@ function ClassDetail({ classData, onBack }) {
     const [loading, setLoading] = useState(true)
     const [showCreateExam, setShowCreateExam] = useState(false)
     const [selectedExam, setSelectedExam] = useState(null)
-
-    // 시험 생성 폼
-    const [examTitle, setExamTitle] = useState('')
-    const [examSubject, setExamSubject] = useState('')
-    const [questionCount, setQuestionCount] = useState(25)
-    const [answers, setAnswers] = useState(Array(25).fill(0))
-    const [pointsPerQuestion, setPointsPerQuestion] = useState(4)
-    const [timeLimit, setTimeLimit] = useState(0)
-    const [creating, setCreating] = useState(false)
 
     useEffect(() => {
         const unsubExams = subscribeToExams(classData.id, (examList) => {
@@ -40,66 +33,14 @@ function ClassDetail({ classData, onBack }) {
         }
     }, [classData.id])
 
-    const handleQuestionCountChange = (count) => {
-        const newCount = Math.max(1, Math.min(50, count))
-        setQuestionCount(newCount)
-        setAnswers(prev => {
-            if (newCount > prev.length) {
-                return [...prev, ...Array(newCount - prev.length).fill(0)]
-            }
-            return prev.slice(0, newCount)
-        })
-    }
-
-    const handleAnswerChange = (index, value) => {
-        setAnswers(prev => {
-            const newAnswers = [...prev]
-            newAnswers[index] = value
-            return newAnswers
-        })
-    }
-
-    const handleCreateExam = async () => {
-        if (!examTitle.trim()) {
-            alert('시험 이름을 입력하세요')
-            return
-        }
-        if (!examSubject.trim()) {
-            alert('과목을 입력하세요')
-            return
-        }
-        if (answers.some(a => a === 0)) {
-            alert('모든 문항의 정답을 입력하세요')
-            return
-        }
-
-        setCreating(true)
-        const { error } = await createExam(classData.id, {
-            title: examTitle.trim(),
-            subject: examSubject.trim(),
-            answers,
-            pointsPerQuestion,
-            timeLimit
-        })
-        setCreating(false)
-
+    const handleCreateExam = async (examData) => {
+        const { error } = await createExam(classData.id, examData)
         if (error) {
             alert('시험 생성 실패: ' + error)
             return
         }
-
         setShowCreateExam(false)
-        resetExamForm()
         alert('시험이 생성되었습니다!')
-    }
-
-    const resetExamForm = () => {
-        setExamTitle('')
-        setExamSubject('')
-        setQuestionCount(25)
-        setAnswers(Array(25).fill(0))
-        setPointsPerQuestion(4)
-        setTimeLimit(0)
     }
 
     const handleDeleteExam = async (examId, examTitle) => {
@@ -116,13 +57,70 @@ function ClassDetail({ classData, onBack }) {
         return submissions.filter(s => s.examId === examId).length
     }
 
+    // 시험 선택 시 정답을 별도 컬렉션에서 가져옴
+    const handleSelectExam = async (exam) => {
+        const { data, error } = await getExamAnswers(exam.id)
+        if (error) {
+            // 기존 방식 (answers가 exam에 있는 경우) 호환
+            if (exam.answers) {
+                setSelectedExam(exam)
+                return
+            }
+            alert('정답 로딩 실패: ' + error)
+            return
+        }
+        // examData에 answers 포함 (새 방식인 경우 questions에서 추출)
+        if (data.questions) {
+            setSelectedExam({ ...exam, questions: data.questions })
+        } else {
+            setSelectedExam({ ...exam, answers: data.answers })
+        }
+    }
+
+    // 문제 유형 표시
+    const getQuestionTypeLabel = (exam) => {
+        if (exam.questions) {
+            // 새 형식
+            const types = [...new Set(exam.questions.map(q => q.type))]
+            const typeLabels = {
+                choice4: '4지선다',
+                choice5: '5지선다',
+                ox: 'O/X',
+                short: '단답형',
+                essay: '서술형'
+            }
+            if (types.length === 1) {
+                return typeLabels[types[0]] || types[0]
+            }
+            return '혼합'
+        }
+        // 기존 형식
+        return '4지선다'
+    }
+
+    // 제출물 새로고침 (채점 후 강제 리로드용)
+    const handleRefreshSubmissions = () => {
+        // subscriptions가 자동으로 업데이트하므로 별도 조치 불필요
+        // 하지만 answerData를 다시 로드할 수 있음
+        if (selectedExam) {
+            handleSelectExam(selectedExam)
+        }
+    }
+
     if (selectedExam) {
+        // answerData 구성: 새 형식이면 questions, 기존 형식이면 answers
+        const answerData = selectedExam.questions
+            ? { questions: selectedExam.questions }
+            : { answers: selectedExam.answers, pointsPerQuestion: selectedExam.pointsPerQuestion }
+
         return (
             <ResultsView
                 classData={classData}
                 examData={selectedExam}
+                answerData={answerData}
                 submissions={submissions.filter(s => s.examId === selectedExam.id)}
                 onBack={() => setSelectedExam(null)}
+                onRefresh={handleRefreshSubmissions}
             />
         )
     }
@@ -172,33 +170,44 @@ function ClassDetail({ classData, onBack }) {
                                 <div
                                     key={exam.id}
                                     className={`border-2 rounded-xl p-4 transition-all ${exam.isActive
-                                            ? 'border-green-200 bg-green-50'
-                                            : 'border-gray-200 bg-gray-50'
+                                        ? 'border-green-200 bg-green-50'
+                                        : 'border-gray-200 bg-gray-50'
                                         }`}
                                 >
                                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
                                         <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
+                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
                                                 <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-sm font-semibold">
                                                     {exam.subject}
                                                 </span>
+                                                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-sm">
+                                                    {getQuestionTypeLabel(exam)}
+                                                </span>
                                                 <h3 className="text-lg font-bold text-gray-800">{exam.title}</h3>
                                                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${exam.isActive
-                                                        ? 'bg-green-200 text-green-800'
-                                                        : 'bg-gray-300 text-gray-600'
+                                                    ? 'bg-green-200 text-green-800'
+                                                    : 'bg-gray-300 text-gray-600'
                                                     }`}>
                                                     {exam.isActive ? '진행중' : '마감'}
                                                 </span>
                                             </div>
                                             <p className="text-gray-500 text-sm">
-                                                {exam.questionCount}문항 × {exam.pointsPerQuestion}점 = {exam.questionCount * exam.pointsPerQuestion}점 만점
+                                                {exam.questionCount}문항
+                                                {exam.totalPoints ? (
+                                                    <> • {exam.totalPoints}점 만점</>
+                                                ) : (
+                                                    <> × {exam.pointsPerQuestion}점 = {exam.questionCount * exam.pointsPerQuestion}점 만점</>
+                                                )}
+                                                {exam.manualGradablePoints > 0 && (
+                                                    <span className="text-yellow-600"> (서술형 {exam.manualGradablePoints}점)</span>
+                                                )}
                                                 {exam.timeLimit > 0 && ` • 제한시간 ${exam.timeLimit}분`}
                                                 {' • '}응시 {getExamSubmissionCount(exam.id)}/{classData.studentCount}명
                                             </p>
                                         </div>
                                         <div className="flex flex-wrap gap-2">
                                             <button
-                                                onClick={() => setSelectedExam(exam)}
+                                                onClick={() => handleSelectExam(exam)}
                                                 className="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-colors text-sm"
                                             >
                                                 결과 보기
@@ -206,8 +215,8 @@ function ClassDetail({ classData, onBack }) {
                                             <button
                                                 onClick={() => toggleExamActive(exam.id, !exam.isActive)}
                                                 className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${exam.isActive
-                                                        ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                                                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                                    ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
                                                     }`}
                                             >
                                                 {exam.isActive ? '마감하기' : '재개하기'}
@@ -229,117 +238,11 @@ function ClassDetail({ classData, onBack }) {
 
             {/* 시험 생성 모달 */}
             {showCreateExam && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 overflow-auto">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-2xl max-h-[90vh] overflow-auto">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4">새 시험 만들기</h2>
-
-                        <div className="space-y-4">
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">과목</label>
-                                    <input
-                                        type="text"
-                                        value={examSubject}
-                                        onChange={(e) => setExamSubject(e.target.value)}
-                                        placeholder="예: 수학"
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">시험명</label>
-                                    <input
-                                        type="text"
-                                        value={examTitle}
-                                        onChange={(e) => setExamTitle(e.target.value)}
-                                        placeholder="예: 1학기 중간고사"
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                    />
-                                </div>
-                            </div>
-
-                            <div className="grid grid-cols-3 gap-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">문항 수</label>
-                                    <input
-                                        type="number"
-                                        value={questionCount}
-                                        onChange={(e) => handleQuestionCountChange(parseInt(e.target.value) || 1)}
-                                        min="1"
-                                        max="50"
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">문항당 배점</label>
-                                    <input
-                                        type="number"
-                                        value={pointsPerQuestion}
-                                        onChange={(e) => setPointsPerQuestion(parseInt(e.target.value) || 1)}
-                                        min="1"
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">제한시간 (분, 0=무제한)</label>
-                                    <input
-                                        type="number"
-                                        value={timeLimit}
-                                        onChange={(e) => setTimeLimit(parseInt(e.target.value) || 0)}
-                                        min="0"
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                    />
-                                </div>
-                            </div>
-
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-2">
-                                    정답 입력 (1~4)
-                                </label>
-                                <div className="grid grid-cols-5 md:grid-cols-10 gap-2">
-                                    {answers.map((answer, index) => (
-                                        <div key={index} className="text-center">
-                                            <div className="text-xs text-gray-500 mb-1">{index + 1}번</div>
-                                            <select
-                                                value={answer}
-                                                onChange={(e) => handleAnswerChange(index, parseInt(e.target.value))}
-                                                className={`w-full px-2 py-2 border-2 rounded-lg text-center font-bold ${answer === 0
-                                                        ? 'border-red-300 bg-red-50'
-                                                        : 'border-green-300 bg-green-50'
-                                                    }`}
-                                            >
-                                                <option value={0}>-</option>
-                                                <option value={1}>①</option>
-                                                <option value={2}>②</option>
-                                                <option value={3}>③</option>
-                                                <option value={4}>④</option>
-                                            </select>
-                                        </div>
-                                    ))}
-                                </div>
-                                <p className="text-sm text-gray-500 mt-2">
-                                    만점: {questionCount * pointsPerQuestion}점 •
-                                    입력 완료: {answers.filter(a => a !== 0).length}/{questionCount}
-                                </p>
-                            </div>
-                        </div>
-
-                        <div className="flex gap-3 mt-6">
-                            <button
-                                onClick={() => { setShowCreateExam(false); resetExamForm() }}
-                                className="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
-                            >
-                                취소
-                            </button>
-                            <button
-                                onClick={handleCreateExam}
-                                disabled={creating}
-                                className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50"
-                            >
-                                {creating ? '생성중...' : '시험 생성'}
-                            </button>
-                        </div>
-                    </div>
-                </div>
+                <ExamCreateModal
+                    classData={classData}
+                    onClose={() => setShowCreateExam(false)}
+                    onSubmit={handleCreateExam}
+                />
             )}
         </div>
     )
