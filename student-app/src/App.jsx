@@ -97,8 +97,7 @@ function App() {
         examTitle: exam.title,
         subject: exam.subject,
         totalQuestions: exam.questionCount,
-        hasEssay: existingSubmission.hasEssay || false,
-        essayCount: existingSubmission.essayCount || 0
+        ...existingSubmission // Pass full submission data including itemResults and score
       })
       setScreen('complete')
     } else {
