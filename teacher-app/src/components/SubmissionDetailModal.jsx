@@ -76,9 +76,10 @@ function SubmissionDetailModal({
     // 기존 수동 채점 점수 로드
     useEffect(() => {
         if (submission.manualScores) {
+            // eslint-disable-next-line
             setManualScores(submission.manualScores)
         }
-    }, [submission])
+    }, [submission.manualScores])
 
     // 서술형 문항 목록
     const essayQuestions = itemResults?.filter(item => item.type === 'essay') || []

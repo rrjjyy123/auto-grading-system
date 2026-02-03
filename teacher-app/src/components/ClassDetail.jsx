@@ -248,12 +248,22 @@ function ClassDetail({ classData, onBack }) {
                                             </button>
                                             <button
                                                 onClick={() => toggleExamActive(exam.id, !exam.isActive)}
-                                                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${exam.isActive
-                                                    ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm border ${exam.isActive
+                                                    ? 'bg-green-500 border-green-600 text-white'
+                                                    : 'bg-gray-200 border-gray-300 text-gray-500 hover:bg-gray-300'
                                                     }`}
                                             >
-                                                {exam.isActive ? '⛔ 배포 마감' : '✅ 배포 시작'}
+                                                {exam.isActive ? (
+                                                    <>
+                                                        배포중
+                                                        <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                                                    </>
+                                                ) : (
+                                                    <>
+                                                        <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                                                        배포마감
+                                                    </>
+                                                )}
                                             </button>
                                             <button
                                                 onClick={() => handleEditExam(exam)}

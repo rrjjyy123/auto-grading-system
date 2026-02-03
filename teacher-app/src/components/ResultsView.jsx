@@ -4,7 +4,8 @@ import {
     gradeSubmission,
     gradeAllSubmissions,
     updateSubmissionScore,
-    updateResultConfig
+    updateResultConfig,
+    updateExam
 } from '../lib/firebase'
 import SubmissionDetailModal from './SubmissionDetailModal'
 import ResultReleaseModal from './ResultReleaseModal'
@@ -271,6 +272,43 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
         }
     }
 
+    // 재응시 허용 토글
+    const handleToggleRetake = async () => {
+        const newValue = !examData.allowRetake
+        const { error } = await updateExam(examData.id, classData.id, {
+            ...examData,
+            allowRetake: newValue
+        })
+
+        if (error) {
+            alert('설정 변경 실패: ' + error)
+        } else {
+            // UI 업데이트를 위해 상위 데이터 리로드가 필요할 수 있음
+            if (onRefresh) onRefresh()
+        }
+    }
+
+    // 오답 분석 상세 보기
+    const [selectedAnalysisItem, setSelectedAnalysisItem] = useState(null)
+
+    // 문항별 선택 분포 계산
+    const getAnswerDistribution = (questionNum) => {
+        const distribution = {}
+        const processed = processedSubmissions.filter(s => s.score !== null)
+
+        processed.forEach(sub => {
+            const item = sub.itemResults?.find(i => i.questionNum === questionNum)
+            if (item) {
+                const ans = item.studentAnswer
+                const key = Array.isArray(ans) ? ans.join(',') : String(ans)
+                if (!distribution[key]) distribution[key] = { count: 0, studentNumbers: [] }
+                distribution[key].count++
+                distribution[key].studentNumbers.push(sub.studentNumber)
+            }
+        })
+        return distribution
+    }
+
     return (
         <div className="min-h-screen p-4 md:p-6">
             <div className="max-w-7xl mx-auto">
@@ -291,12 +329,38 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                                     {examData.subject}
                                 </span>
                                 <h1 className="text-xl font-bold text-gray-800">{examData.title}</h1>
+                                {examData.allowRetake && (
+                                    <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-md text-xs font-bold border border-purple-200">
+                                        재응시 허용중
+                                    </span>
+                                )}
                             </div>
                             <p className="text-gray-500">
                                 {classData.name} • {examData.questionCount}문항 • {stats.fullScore}점 만점
                             </p>
                         </div>
-                        <div className="flex gap-2">
+                        <div className="flex gap-2 items-center">
+                            {/* 재응시 허용 토글 (ON/OFF 스타일) */}
+                            <button
+                                onClick={handleToggleRetake}
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm border mr-2 ${examData.allowRetake
+                                    ? 'bg-green-500 border-green-600 text-white'
+                                    : 'bg-gray-200 border-gray-300 text-gray-500 hover:bg-gray-300'
+                                    }`}
+                            >
+                                {examData.allowRetake ? (
+                                    <>
+                                        재응시 ON
+                                        <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                                        재응시 OFF
+                                    </>
+                                )}
+                            </button>
+
                             {/* 서술형 있는 시험만 수동 채점 버튼 표시 */}
                             {ungradedCount > 0 && hasEssayQuestions && (
                                 <button
@@ -529,16 +593,18 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                 {viewMode === 'analysis' && (
                     <div className="bg-white rounded-2xl shadow-lg p-6">
                         <h2 className="text-lg font-bold text-gray-800 mb-4">문항별 정답률 분석</h2>
+                        <p className="text-sm text-gray-500 mb-4">문항을 클릭하면 학생들이 어떤 답을 선택했는지 상세 분포를 확인할 수 있습니다.</p>
 
                         <div className="grid grid-cols-5 md:grid-cols-10 gap-3">
                             {itemStats.map(item => (
-                                <div
+                                <button
                                     key={item.questionNum}
-                                    className={`p-3 rounded-xl text-center ${item.type === 'essay'
-                                        ? 'bg-gray-100 border border-gray-200'
+                                    onClick={() => setSelectedAnalysisItem(item)}
+                                    className={`p-3 rounded-xl text-center transition-all hover:scale-105 active:scale-95 ${item.type === 'essay'
+                                        ? 'bg-gray-100 border border-gray-200 hover:border-gray-400'
                                         : item.isWeak
-                                            ? 'bg-red-100 border-2 border-red-300'
-                                            : 'bg-green-50 border border-green-200'
+                                            ? 'bg-red-100 border-2 border-red-300 hover:border-red-500'
+                                            : 'bg-green-50 border border-green-200 hover:border-green-400'
                                         }`}
                                 >
                                     <div className="text-sm text-gray-600 mb-1">{item.questionNum}번</div>
@@ -553,7 +619,7 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                                         }`}>
                                         {item.type === 'essay' ? '서술형' : `${item.rate}%`}
                                     </div>
-                                </div>
+                                </button>
                             ))}
                         </div>
 
@@ -588,6 +654,76 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                     onClose={() => setShowReleaseModal(false)}
                     onSave={handleSaveReleaseConfig}
                 />
+            )}
+
+            {/* 문항 상세 분석 모달 */}
+            {selectedAnalysisItem && (
+                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-lg overflow-hidden">
+                        <div className="p-5 border-b flex justify-between items-center bg-gray-50">
+                            <h3 className="font-bold text-lg text-gray-800">
+                                {selectedAnalysisItem.questionNum}번 문항 상세 분석
+                            </h3>
+                            <button onClick={() => setSelectedAnalysisItem(null)} className="text-gray-400 hover:text-gray-600">
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+                        <div className="p-6">
+                            <div className="flex gap-4 mb-6">
+                                <div className="flex-1 bg-blue-50 p-4 rounded-xl text-center">
+                                    <span className="block text-sm text-gray-500 mb-1">정답</span>
+                                    <span className="text-xl font-bold text-blue-600">
+                                        {formatAnswer(selectedAnalysisItem.correctAnswer, selectedAnalysisItem.type)}
+                                    </span>
+                                </div>
+                                <div className="flex-1 bg-green-50 p-4 rounded-xl text-center">
+                                    <span className="block text-sm text-gray-500 mb-1">정답률</span>
+                                    <span className="text-xl font-bold text-green-600">
+                                        {selectedAnalysisItem.rate}%
+                                    </span>
+                                </div>
+                            </div>
+
+                            <h4 className="font-bold text-gray-700 mb-3">학생 선택 분포</h4>
+                            <div className="space-y-3 max-h-[300px] overflow-y-auto">
+                                {Object.entries(getAnswerDistribution(selectedAnalysisItem.questionNum))
+                                    .sort((a, b) => b[1].count - a[1].count)
+                                    .map(([ans, info]) => {
+                                        const isCorrect = String(ans) === String(Array.isArray(selectedAnalysisItem.correctAnswer) ? selectedAnalysisItem.correctAnswer.join(',') : selectedAnalysisItem.correctAnswer)
+                                        const percentage = Math.round((info.count / processedSubmissions.length) * 100)
+
+                                        return (
+                                            <div key={ans} className={`p-3 rounded-lg border ${isCorrect ? 'border-green-200 bg-green-50' : 'border-gray-100 bg-white'}`}>
+                                                <div className="flex justify-between items-center mb-1">
+                                                    <span className={`font-bold ${isCorrect ? 'text-green-700' : 'text-gray-700'}`}>
+                                                        {formatAnswer(ans.split(',').map(s => isNaN(s) ? s : Number(s)), selectedAnalysisItem.type)}
+                                                        {isCorrect && <span className="text-xs ml-2 bg-green-200 text-green-800 px-1.5 py-0.5 rounded">정답</span>}
+                                                    </span>
+                                                    <span className="text-sm font-medium text-gray-500">
+                                                        {info.count}명 ({percentage}%)
+                                                    </span>
+                                                </div>
+                                                <div className="w-full bg-gray-200 rounded-full h-2 mb-2">
+                                                    <div
+                                                        className={`h-2 rounded-full ${isCorrect ? 'bg-green-500' : 'bg-gray-500'}`}
+                                                        style={{ width: `${percentage}%` }}
+                                                    ></div>
+                                                </div>
+                                                <div className="text-xs text-gray-400 flex flex-wrap gap-1">
+                                                    {info.studentNumbers.slice(0, 10).map(n => (
+                                                        <span key={n} className="bg-white border px-1 rounded">{n}번</span>
+                                                    ))}
+                                                    {info.studentNumbers.length > 10 && <span>...외 {info.studentNumbers.length - 10}명</span>}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                            </div>
+                        </div>
+                    </div>
+                </div>
             )}
         </div>
     )

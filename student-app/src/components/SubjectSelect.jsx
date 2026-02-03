@@ -4,7 +4,7 @@ import { getActiveExams, checkExistingSubmission } from '../lib/firebase'
 function SubjectSelect({ studentData, onSelectExam, onBack }) {
     const [activeExams, setActiveExams] = useState([])
     const [submittedExams, setSubmittedExams] = useState([])
-    const [submissionMap, setSubmissionMap] = useState({})
+    // const [submissionMap, setSubmissionMap] = useState({})
     const [loading, setLoading] = useState(true)
 
     const { studentCode, classData } = studentData
@@ -33,7 +33,7 @@ function SubjectSelect({ studentData, onSelectExam, onBack }) {
 
         setActiveExams(active)
         setSubmittedExams(submitted)
-        setSubmissionMap(mySubmissions || {})
+        // setSubmissionMap(mySubmissions || {})
         setLoading(false)
     }
 
@@ -139,7 +139,7 @@ function SubjectSelect({ studentData, onSelectExam, onBack }) {
                     ) : (
                         <div className="space-y-3">
                             {submittedExams.map((exam) => {
-                                const submission = exam.submission
+                                // const submission = exam.submission
                                 const config = exam.resultConfig
                                 const isReleased = config && (config.showScore || config.showAnswer || config.showExplanation)
 

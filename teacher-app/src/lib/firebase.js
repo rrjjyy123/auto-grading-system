@@ -193,8 +193,6 @@ export const deleteClass = async (classId) => {
         // 학급 삭제
         await deleteDoc(doc(db, 'classes', classId));
         return { error: null };
-
-        return { error: null };
     } catch (error) {
         return { error: error.message };
     }
@@ -666,7 +664,7 @@ const gradeQuestion = (question, studentAnswer) => {
         case 'choice4':
         case 'choice5':
             return gradeChoice(correctAnswers, studentAnswer, answerLogic);
-        case 'ox':
+        case 'ox': {
             const correct = correctAnswers[0];
             const student = Array.isArray(studentAnswer) ? studentAnswer[0] : studentAnswer;
             // O, 'O', true 모두 O로 취급
@@ -677,6 +675,7 @@ const gradeQuestion = (question, studentAnswer) => {
             if (isO(correct)) return isO(student);
             if (isX(correct)) return isX(student);
             return correct === student;
+        }
         case 'short':
             return gradeShortAnswer(correctAnswers, studentAnswer, answerLogic);
         default:

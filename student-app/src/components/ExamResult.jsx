@@ -23,7 +23,8 @@ function ExamResult({ examData, submissionData, onBack }) {
     const radarData = useMemo(() => {
         if (!resultConfig.showRadar) return []
 
-        const questions = examData.questionTypes || []
+        // questions 또는 questionTypes (호환성)
+        const questions = examData.questions || examData.questionTypes || []
         const questionMap = {}
         questions.forEach(q => {
             if (q.category && q.category.trim()) {
@@ -36,7 +37,10 @@ function ExamResult({ examData, submissionData, onBack }) {
 
         // 내 영역별 점수 계산
         const myStats = {}
-        itemResults.forEach(item => {
+        // itemResults가 없는 경우 대비
+        const results = itemResults || []
+
+        results.forEach(item => {
             const qInfo = questionMap[item.questionNum]
             if (qInfo) {
                 const cat = qInfo.category
@@ -69,8 +73,10 @@ function ExamResult({ examData, submissionData, onBack }) {
 
     // 문항 리스트 (questions 정보와 결과 병합)
     const displayItems = useMemo(() => {
-        const questions = examData.questionTypes || []
-        return itemResults.map(item => {
+        const questions = examData.questions || examData.questionTypes || []
+        const results = itemResults || []
+
+        return results.map(item => {
             const q = questions.find(q => q.num === item.questionNum) || {}
             return {
                 ...item,
