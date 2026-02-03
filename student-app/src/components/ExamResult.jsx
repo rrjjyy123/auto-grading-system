@@ -14,14 +14,15 @@ import {
  * 선생님의 공개 설정에 따라 다른 정보를 표시함
  */
 function ExamResult({ examData, submissionData, onBack }) {
-    const { resultConfig, statistics } = examData
+    const resultConfig = examData.resultConfig || {}
+    const statistics = examData.statistics || {}
     const { itemResults, score, totalScore } = submissionData
 
     const [expandedExplanation, setExpandedExplanation] = useState(null)
 
     // 레이더 차트 데이터 계산
     const radarData = useMemo(() => {
-        if (!resultConfig.showRadar) return []
+        if (!resultConfig?.showRadar) return []
 
         // questions 또는 questionTypes (호환성)
         const questions = examData.questions || examData.questionTypes || []

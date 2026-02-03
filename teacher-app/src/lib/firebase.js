@@ -352,6 +352,7 @@ export const updateExam = async (examId, classId, examData) => {
                 questionTypes: questionTypes,
                 answers: legacyAnswers,
                 pointsPerQuestion: Math.round(examData.totalPoints / examData.questionCount),
+                allowRetake: examData.allowRetake || false,
                 updatedAt: serverTimestamp()
             });
 
@@ -374,6 +375,7 @@ export const updateExam = async (examId, classId, examData) => {
             questionCount: examData.answers.length,
             pointsPerQuestion: examData.pointsPerQuestion || 4,
             timeLimit: examData.timeLimit || 0,
+            allowRetake: examData.allowRetake || false,
             updatedAt: serverTimestamp()
         });
 
