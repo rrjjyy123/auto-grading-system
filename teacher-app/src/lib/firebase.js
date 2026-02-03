@@ -610,7 +610,8 @@ export const gradeSubmission = (submission, answerData) => {
                 studentAnswer: studentAnswer?.value ?? studentAnswer,
                 correct: isCorrect,
                 points: earnedPoints,
-                maxPoints: question.points
+                maxPoints: question.points,
+                category: question.category || ''
             });
         });
     } else {

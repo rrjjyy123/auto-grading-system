@@ -77,7 +77,7 @@ function ExamResult({ examData, submissionData, onBack }) {
         const results = itemResults || []
 
         return results.map(item => {
-            const q = questions.find(q => q.num === item.questionNum) || {}
+            const q = questions.find(q => q.num === item.questionNum) || questions[item.questionNum - 1] || {}
             return {
                 ...item,
                 category: q.category || '',
