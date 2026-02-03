@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { submitAnswers } from '../lib/firebase'
+import { submitAnswers, logConnection } from '../lib/firebase'
 
 function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
     // 문항별 타입에 맞는 초기값 생성
@@ -43,6 +43,11 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
             points: examData.pointsPerQuestion || 4
         }
     }
+
+    // 접속 로그 기록
+    useEffect(() => {
+        logConnection(examData.id, studentCode.studentNumber, 'connected')
+    }, [])
 
     // 타이머
     useEffect(() => {
@@ -174,12 +179,15 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
         if (result.success) {
             onSubmit({
                 submitted: true,
-                totalQuestions: result.totalQuestions,
                 examTitle: examData.title,
                 subject: examData.subject,
                 hasEssay: result.hasEssay,
-                essayCount: result.essayCount
+                essayCount: result.essayCount,
+                examId: examData.id,
+                studentNumber: studentCode.studentNumber
             })
+            // 제출 완료 로그 - 비동기 처리하되 await 안함 (UI 반응 우선)
+            logConnection(examData.id, studentCode.studentNumber, 'submitted')
         } else {
             alert('제출 실패: ' + result.error)
         }

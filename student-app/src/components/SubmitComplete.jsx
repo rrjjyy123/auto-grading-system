@@ -1,4 +1,51 @@
+import { useState, useEffect } from 'react'
+import { subscribeToExam, subscribeToMySubmission } from '../lib/firebase'
+import ExamResult from './ExamResult'
+
 function SubmitComplete({ result, onRestart }) {
+    const [remoteExamData, setRemoteExamData] = useState(null)
+    const [submissionData, setSubmissionData] = useState(null)
+    const [showResult, setShowResult] = useState(false)
+
+    // 시험 정보 구독
+    useEffect(() => {
+        if (!result.examId) return
+        const unsub = subscribeToExam(result.examId, (data) => {
+            setRemoteExamData(data)
+        })
+        return () => unsub()
+    }, [result.examId])
+
+    // 내 결과 구독
+    useEffect(() => {
+        if (!result.examId || !result.studentNumber || !remoteExamData) return
+
+        const config = remoteExamData.resultConfig || {}
+        const isReleased = config.showScore || config.showAnswers || config.showExplanation || config.showRadar
+
+        if (isReleased) {
+            const unsub = subscribeToMySubmission(result.examId, result.studentNumber, (data) => {
+                setSubmissionData(data)
+            })
+            return () => unsub()
+        }
+    }, [result.examId, result.studentNumber, remoteExamData])
+
+    // 결과 화면 렌더링
+    if (showResult && remoteExamData && submissionData) {
+        return (
+            <ExamResult
+                examData={remoteExamData}
+                submissionData={submissionData}
+                onBack={() => setShowResult(false)}
+            />
+        )
+    }
+
+    const config = remoteExamData?.resultConfig || {}
+    const isReleased = config.showScore || config.showAnswers || config.showExplanation || config.showRadar
+    const isGraded = submissionData?.graded
+
     return (
         <div className="min-h-screen flex items-center justify-center p-4">
             <div className="w-full max-w-md bg-white rounded-2xl shadow-xl p-8 text-center">
@@ -35,14 +82,30 @@ function SubmitComplete({ result, onRestart }) {
                     )}
                 </div>
 
-                {/* 안내 메시지 */}
-                <div className="p-4 bg-yellow-50 rounded-xl mb-6 text-left">
-                    <p className="text-yellow-800 font-medium mb-2">📌 안내</p>
-                    <ul className="text-sm text-yellow-700 space-y-1">
-                        <li>• 선생님이 채점 후 점수를 확인할 수 있습니다</li>
-                        <li>• 제출 후에는 수정이 불가능합니다</li>
-                    </ul>
-                </div>
+                {/* 결과 확인 알림 */}
+                {isReleased && isGraded ? (
+                    <div className="mb-6 p-4 bg-blue-100 rounded-xl border border-blue-200 animate-pulse">
+                        <p className="text-blue-800 font-bold text-lg mb-1">📢 채점 결과가 도착했습니다!</p>
+                        <p className="text-blue-600 text-sm">아래 버튼을 눌러 확인하세요</p>
+                    </div>
+                ) : (
+                    <div className="p-4 bg-yellow-50 rounded-xl mb-6 text-left">
+                        <p className="text-yellow-800 font-medium mb-2">📌 안내</p>
+                        <ul className="text-sm text-yellow-700 space-y-1">
+                            <li>• 선생님이 채점 후 점수를 확인할 수 있습니다</li>
+                            <li>• 제출 후에는 수정이 불가능합니다</li>
+                        </ul>
+                    </div>
+                )}
+
+                {isReleased && isGraded ? (
+                    <button
+                        onClick={() => setShowResult(true)}
+                        className="w-full py-4 bg-blue-600 text-white rounded-xl font-bold text-lg hover:bg-blue-700 transition-colors shadow-lg mb-3"
+                    >
+                        성적표 확인하기
+                    </button>
+                ) : null}
 
                 <button
                     onClick={onRestart}

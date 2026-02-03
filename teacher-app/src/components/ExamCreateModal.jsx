@@ -55,7 +55,9 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
             answerLogic: 'and',
             points: basePoints + (idx < remainder ? 1 : 0),  // 나머지 점수 앞 문항에 분배
             shortAnswerInput: '',  // 단답형 입력 임시 저장
-            isMultipleAnswer: false  // 복수정답 여부
+            isMultipleAnswer: false,  // 복수정답 여부
+            category: '', // 영역 (선택)
+            explanation: '' // 해설 (선택)
         }))
 
         setQuestions(generatedQuestions)
@@ -191,6 +193,24 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
         })
     }
 
+    // 영역 변경
+    const handleCategoryChange = (index, value) => {
+        setQuestions(prev => {
+            const updated = [...prev]
+            updated[index] = { ...updated[index], category: value }
+            return updated
+        })
+    }
+
+    // 해설 변경
+    const handleExplanationChange = (index, value) => {
+        setQuestions(prev => {
+            const updated = [...prev]
+            updated[index] = { ...updated[index], explanation: value }
+            return updated
+        })
+    }
+
     // 총점 계산
     const getTotalPoints = () => {
         return questions.reduce((sum, q) => sum + q.points, 0)
@@ -239,7 +259,9 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
                 type: q.type,
                 correctAnswers: q.correctAnswers,
                 answerLogic: q.answerLogic,
-                points: q.points
+                points: q.points,
+                category: q.category || '',
+                explanation: q.explanation || ''
             })),
             totalPoints: getTotalPoints(),
             autoGradablePoints: getAutoGradablePoints(),
@@ -310,8 +332,8 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
                                             key={type.value}
                                             onClick={() => setDefaultType(type.value)}
                                             className={`p-4 border-2 rounded-xl text-center transition-all ${defaultType === type.value
-                                                    ? 'border-blue-500 bg-blue-50'
-                                                    : 'border-gray-200 hover:border-gray-300'
+                                                ? 'border-blue-500 bg-blue-50'
+                                                : 'border-gray-200 hover:border-gray-300'
                                                 }`}
                                         >
                                             <div className="text-2xl mb-1">{type.icon}</div>
@@ -426,8 +448,8 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
                                                     key={i}
                                                     onClick={() => handleChoiceToggle(idx, i + 1)}
                                                     className={`w-10 h-10 rounded-full font-bold transition-all ${q.correctAnswers.includes(i + 1)
-                                                            ? 'bg-green-500 text-white'
-                                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                        ? 'bg-green-500 text-white'
+                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                                         }`}
                                                 >
                                                     {choiceLabels[i]}
@@ -464,8 +486,8 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
                                             <button
                                                 onClick={() => handleOXSelect(idx, 'O')}
                                                 className={`px-6 py-2 rounded-lg font-bold transition-all ${q.correctAnswers.includes('O')
-                                                        ? 'bg-blue-500 text-white'
-                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                    ? 'bg-blue-500 text-white'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                                     }`}
                                             >
                                                 O
@@ -473,8 +495,8 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
                                             <button
                                                 onClick={() => handleOXSelect(idx, 'X')}
                                                 className={`px-6 py-2 rounded-lg font-bold transition-all ${q.correctAnswers.includes('X')
-                                                        ? 'bg-red-500 text-white'
-                                                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                    ? 'bg-red-500 text-white'
+                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                                     }`}
                                             >
                                                 X
@@ -555,6 +577,32 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
                                             </p>
                                         </div>
                                     ) : null}
+
+                                    {/* 영역 및 해설 입력 */}
+                                    <div className="mt-4 pt-4 border-t border-gray-100 w-full">
+                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                                            <div>
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">영역 (선택)</label>
+                                                <input
+                                                    type="text"
+                                                    value={q.category || ''}
+                                                    onChange={(e) => handleCategoryChange(idx, e.target.value)}
+                                                    placeholder="예: 수와 연산"
+                                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:border-blue-500 transition-colors focus:outline-none"
+                                                />
+                                            </div>
+                                            <div className="md:col-span-2">
+                                                <label className="block text-xs font-semibold text-gray-500 mb-1">해설 (선택)</label>
+                                                <input
+                                                    type="text"
+                                                    value={q.explanation || ''}
+                                                    onChange={(e) => handleExplanationChange(idx, e.target.value)}
+                                                    placeholder="학생에게 보여줄 해설을 간단히 입력하세요"
+                                                    className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:bg-white focus:border-blue-500 transition-colors focus:outline-none"
+                                                />
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             ))}
                         </div>

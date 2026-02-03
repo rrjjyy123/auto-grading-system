@@ -11,6 +11,7 @@ import {
 import ResultsView from './ResultsView'
 import ExamCreateModal from './ExamCreateModal'
 import ExamEditModal from './ExamEditModal'
+import MonitorPanel from './MonitorPanel'
 
 function ClassDetail({ classData, onBack }) {
     const [exams, setExams] = useState([])
@@ -19,6 +20,7 @@ function ClassDetail({ classData, onBack }) {
     const [showCreateExam, setShowCreateExam] = useState(false)
     const [selectedExam, setSelectedExam] = useState(null)
     const [editingExam, setEditingExam] = useState(null)
+    const [monitorExam, setMonitorExam] = useState(null)
 
     useEffect(() => {
         const unsubExams = subscribeToExams(classData.id, (examList) => {
@@ -239,6 +241,12 @@ function ClassDetail({ classData, onBack }) {
                                                 결과 보기
                                             </button>
                                             <button
+                                                onClick={() => setMonitorExam(exam)}
+                                                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg font-semibold hover:bg-indigo-200 transition-colors text-sm flex items-center gap-1"
+                                            >
+                                                📡 접속 확인
+                                            </button>
+                                            <button
                                                 onClick={() => toggleExamActive(exam.id, !exam.isActive)}
                                                 className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${exam.isActive
                                                     ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
@@ -284,6 +292,15 @@ function ClassDetail({ classData, onBack }) {
                     answerData={editingExam.answerData}
                     onSave={handleUpdateExam}
                     onClose={() => setEditingExam(null)}
+                />
+            )}
+
+            {/* 접속 확인 패널 */}
+            {monitorExam && (
+                <MonitorPanel
+                    exam={monitorExam}
+                    classData={classData}
+                    onClose={() => setMonitorExam(null)}
                 />
             )}
         </div>

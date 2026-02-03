@@ -4,11 +4,13 @@ import {
     collection,
     doc,
     addDoc,
+    setDoc,
     getDoc,
     getDocs,
     query,
     where,
     orderBy,
+    onSnapshot,
     serverTimestamp
 } from 'firebase/firestore';
 
@@ -200,6 +202,51 @@ export const submitAnswers = async (examId, classId, studentNumber, studentCode,
         console.error('Error submitting answers:', error);
         return { success: false, error: '제출 중 오류가 발생했습니다.' };
     }
+};
+
+/**
+ * 접속 로그 기록 (Student App)
+ */
+export const logConnection = async (examId, studentNumber, status) => {
+    try {
+        const logRef = doc(db, 'exam_logs', `${examId}_${studentNumber}`);
+        await setDoc(logRef, {
+            examId,
+            studentNumber,
+            status,
+            timestamp: serverTimestamp()
+        }, { merge: true });
+        return { error: null };
+    } catch (error) {
+        return { error: error.message };
+    }
+};
+
+/**
+ * 시험 정보 실시간 구독 (결과 전송 감지용)
+ */
+export const subscribeToExam = (examId, callback) => {
+    return onSnapshot(doc(db, 'exams', examId), (docSnapshot) => {
+        if (docSnapshot.exists()) {
+            callback({ id: docSnapshot.id, ...docSnapshot.data() });
+        }
+    });
+};
+
+/**
+ * 내 제출 정보 실시간 구독 (채점 결과 감지용)
+ */
+export const subscribeToMySubmission = (examId, studentNumber, callback) => {
+    const q = query(
+        collection(db, 'submissions'),
+        where('examId', '==', examId),
+        where('studentNumber', '==', studentNumber)
+    );
+    return onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+            callback({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+        }
+    });
 };
 
 export { db };

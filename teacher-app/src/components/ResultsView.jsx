@@ -1,7 +1,13 @@
 import { useState, useEffect } from 'react'
 import * as XLSX from 'xlsx'
-import { gradeSubmission, gradeAllSubmissions } from '../lib/firebase'
+import {
+    gradeSubmission,
+    gradeAllSubmissions,
+    updateSubmissionScore,
+    updateResultConfig
+} from '../lib/firebase'
 import SubmissionDetailModal from './SubmissionDetailModal'
+import ResultReleaseModal from './ResultReleaseModal'
 
 function ResultsView({ classData, examData, answerData, submissions, onBack, onRefresh }) {
     const [viewMode, setViewMode] = useState('scores') // 'scores', 'items', 'analysis'
@@ -9,6 +15,8 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
     const [grading, setGrading] = useState(false)
     const [processedSubmissions, setProcessedSubmissions] = useState([])
     const [selectedSubmission, setSelectedSubmission] = useState(null)
+    const [selectedStudent, setSelectedStudent] = useState(null)
+    const [showReleaseModal, setShowReleaseModal] = useState(false)
 
     // 미채점 제출물 수
     const ungradedCount = submissions.filter(s => !s.graded).length
@@ -205,6 +213,63 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
         XLSX.writeFile(wb, `${classData.name}_${examData.subject}_${examData.title}.xlsx`)
     }
 
+    const handleSaveReleaseConfig = async (examId, config) => {
+        let statistics = null
+
+        // 레이더 차트 및 반 평균 옵션 활성화 시 통계 계산
+        if (config.showRadar && config.showClassAverage) {
+            const categoryStats = {}
+
+            const questions = answerData.questions || []
+            const questionMap = {}
+
+            questions.forEach(q => {
+                if (q.category && q.category.trim()) {
+                    questionMap[q.num] = { category: q.category.trim(), points: q.points }
+                }
+            })
+
+            // 영역 정보가 있는 경우에만 계산
+            if (Object.keys(questionMap).length > 0) {
+                let studentCount = 0
+
+                processedSubmissions.forEach(sub => {
+                    if (!sub.graded) return
+                    studentCount++
+
+                    sub.itemResults?.forEach(item => {
+                        const qInfo = questionMap[item.questionNum]
+                        if (qInfo) {
+                            const cat = qInfo.category
+                            if (!categoryStats[cat]) categoryStats[cat] = { total: 0, earned: 0 }
+                            categoryStats[cat].earned += (item.points || 0)
+                            categoryStats[cat].total += qInfo.points
+                        }
+                    })
+                })
+
+                const categoryAverages = {}
+                Object.keys(categoryStats).forEach(cat => {
+                    const { total, earned } = categoryStats[cat]
+                    if (total > 0) {
+                        categoryAverages[cat] = Math.round((earned / total) * 100)
+                    } else {
+                        categoryAverages[cat] = 0
+                    }
+                })
+
+                statistics = { categoryAverages, studentCount }
+            }
+        }
+
+        const { error } = await updateResultConfig(examId, config, statistics)
+        if (error) {
+            alert('설정 저장 실패: ' + error)
+        } else {
+            alert('결과 전송 설정이 적용되었습니다.')
+        }
+    }
+
     return (
         <div className="min-h-screen p-4 md:p-6">
             <div className="max-w-7xl mx-auto">
@@ -248,10 +313,16 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                                 </span>
                             )}
                             <button
-                                onClick={handleExportExcel}
-                                className="px-4 py-2 bg-green-500 text-white rounded-lg font-semibold hover:bg-green-600 transition-colors"
+                                onClick={() => setShowReleaseModal(true)}
+                                className="flex items-center gap-2 px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors shadow-sm"
                             >
-                                📊 엑셀 다운로드
+                                <span>📤</span> 결과 전송
+                            </button>
+                            <button
+                                onClick={handleExportExcel}
+                                className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-sm"
+                            >
+                                <span>📊</span> 엑셀 다운로드
                             </button>
                         </div>
                     </div>
@@ -506,6 +577,15 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                     itemResults={selectedSubmission.itemResults}
                     onClose={() => setSelectedSubmission(null)}
                     onUpdate={onRefresh}
+                />
+            )}
+            {/* 결과 전송 설정 모달 */}
+            {showReleaseModal && (
+                <ResultReleaseModal
+                    examId={examData.id}
+                    currentConfig={examData.resultConfig}
+                    onClose={() => setShowReleaseModal(false)}
+                    onSave={handleSaveReleaseConfig}
                 />
             )}
         </div>

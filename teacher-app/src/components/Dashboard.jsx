@@ -36,8 +36,8 @@ function Dashboard({ user, onLogout }) {
             alert('학급 이름을 입력하세요')
             return
         }
-        if (newStudentCount < 1 || newStudentCount > 50) {
-            alert('학생 수는 1~50명 사이로 입력하세요')
+        if (newStudentCount < 1 || newStudentCount > 500) {
+            alert('학생 수는 1~500명 사이로 입력하세요')
             return
         }
 
@@ -147,8 +147,8 @@ function Dashboard({ user, onLogout }) {
                                 <div
                                     key={classItem.id}
                                     className={`border-2 rounded-xl p-4 transition-all ${classItem.isActive
-                                            ? 'border-green-200 bg-green-50'
-                                            : 'border-gray-200 bg-gray-50'
+                                        ? 'border-green-200 bg-green-50'
+                                        : 'border-gray-200 bg-gray-50'
                                         }`}
                                 >
                                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
@@ -156,8 +156,8 @@ function Dashboard({ user, onLogout }) {
                                             <div className="flex items-center gap-2 mb-1">
                                                 <h3 className="text-lg font-bold text-gray-800">{classItem.name}</h3>
                                                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${classItem.isActive
-                                                        ? 'bg-green-200 text-green-800'
-                                                        : 'bg-gray-300 text-gray-600'
+                                                    ? 'bg-green-200 text-green-800'
+                                                    : 'bg-gray-300 text-gray-600'
                                                     }`}>
                                                     {classItem.isActive ? '활성' : '비활성'}
                                                 </span>
@@ -183,8 +183,8 @@ function Dashboard({ user, onLogout }) {
                                             <button
                                                 onClick={() => handleToggleActive(classItem.id, classItem.isActive)}
                                                 className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${classItem.isActive
-                                                        ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                                                        : 'bg-green-100 text-green-700 hover:bg-green-200'
+                                                    ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
+                                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
                                                     }`}
                                             >
                                                 {classItem.isActive ? '비활성화' : '활성화'}
@@ -228,7 +228,7 @@ function Dashboard({ user, onLogout }) {
                                     value={newStudentCount}
                                     onChange={(e) => setNewStudentCount(parseInt(e.target.value) || 1)}
                                     min="1"
-                                    max="50"
+                                    max="500"
                                     className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
                                 />
                                 <p className="text-sm text-gray-500 mt-1">각 학생에게 고유한 6자리 코드가 생성됩니다</p>

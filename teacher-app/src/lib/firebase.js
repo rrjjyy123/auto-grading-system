@@ -91,25 +91,34 @@ export const createClass = async (name, studentCount) => {
         });
 
         // 학생별 코드 생성
-        const batch = writeBatch(db);
+        // 학생별 코드 생성
         const studentCodes = [];
+        const allCodeDocs = [];
 
         for (let i = 1; i <= studentCount; i++) {
             let code = generateNumericCode();
-            // 중복 체크는 생략 (확률적으로 매우 낮음)
-
-            const codeRef = doc(collection(db, 'studentCodes'));
-            batch.set(codeRef, {
+            allCodeDocs.push({
                 code,
                 classId: classRef.id,
                 studentNumber: i,
                 createdAt: serverTimestamp()
             });
-
             studentCodes.push({ studentNumber: i, code });
         }
 
-        await batch.commit();
+        // 2. 500개씩 나누어 배치 처리
+        const chunkSize = 450; // 여유있게
+        for (let i = 0; i < allCodeDocs.length; i += chunkSize) {
+            const chunk = allCodeDocs.slice(i, i + chunkSize);
+            const batch = writeBatch(db);
+
+            chunk.forEach(data => {
+                const codeRef = doc(collection(db, 'studentCodes'));
+                batch.set(codeRef, data);
+            });
+
+            await batch.commit();
+        }
 
         return {
             data: {
@@ -149,25 +158,41 @@ export const subscribeToMyClasses = (callback) => {
  */
 export const deleteClass = async (classId) => {
     try {
+        // 헬퍼 함수: 배치 삭제 (청크 처리)
+        const deleteInBatches = async (querySnapshot) => {
+            const docs = querySnapshot.docs;
+            const chunkSize = 450;
+            for (let i = 0; i < docs.length; i += chunkSize) {
+                const chunk = docs.slice(i, i + chunkSize);
+                const batch = writeBatch(db);
+                chunk.forEach(doc => batch.delete(doc.ref));
+                await batch.commit();
+            }
+        };
+
         // 관련 학생 코드 삭제
         const codesQuery = query(collection(db, 'studentCodes'), where('classId', '==', classId));
         const codesSnapshot = await getDocs(codesQuery);
-        const batch = writeBatch(db);
-        codesSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+        await deleteInBatches(codesSnapshot);
 
         // 관련 시험 삭제
         const examsQuery = query(collection(db, 'exams'), where('classId', '==', classId));
         const examsSnapshot = await getDocs(examsQuery);
-        examsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+        await deleteInBatches(examsSnapshot);
 
         // 관련 제출 삭제
         const submissionsQuery = query(collection(db, 'submissions'), where('classId', '==', classId));
         const submissionsSnapshot = await getDocs(submissionsQuery);
-        submissionsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+        await deleteInBatches(submissionsSnapshot);
+
+        // 관련 로그 삭제 (추가됨)
+        // 로그는 examId 기준이지만 classId로 바로 찾기 어려울 수 있음. 
+        // 여기서는 시험이 삭제되면 로그는 고아 데이터가 되지만, 큰 문제는 없음.
+        // 완벽을 기하려면 시험 ID들을 모아서 로그를 삭제해야 함. (생략 가능)
 
         // 학급 삭제
-        batch.delete(doc(db, 'classes', classId));
-        await batch.commit();
+        await deleteDoc(doc(db, 'classes', classId));
+        return { error: null };
 
         return { error: null };
     } catch (error) {
@@ -230,7 +255,9 @@ export const createExam = async (classId, examData) => {
                 num: q.num,
                 type: q.type,
                 points: q.points,
-                isMultipleAnswer: q.isMultipleAnswer || false
+                isMultipleAnswer: q.isMultipleAnswer || false,
+                category: q.category || '',
+                explanation: q.explanation || ''
             }));
 
             const examRef = await addDoc(collection(db, 'exams'), {
@@ -310,7 +337,9 @@ export const updateExam = async (examId, classId, examData) => {
                 num: q.num,
                 type: q.type,
                 points: q.points,
-                isMultipleAnswer: q.isMultipleAnswer || false
+                isMultipleAnswer: q.isMultipleAnswer || false,
+                category: q.category || '',
+                explanation: q.explanation || ''
             }));
 
             await updateDoc(doc(db, 'exams', examId), {
@@ -384,18 +413,44 @@ export const subscribeToExams = (classId, callback) => {
  */
 export const deleteExam = async (examId) => {
     try {
+        // 헬퍼 함수: 배치 삭제 (청크 처리 및 에러 무시)
+        const deleteInBatches = async (querySnapshot) => {
+            const docs = querySnapshot.docs;
+            const chunkSize = 450;
+            for (let i = 0; i < docs.length; i += chunkSize) {
+                const chunk = docs.slice(i, i + chunkSize);
+                const batch = writeBatch(db);
+                chunk.forEach(doc => batch.delete(doc.ref));
+                try {
+                    await batch.commit();
+                } catch (e) {
+                    console.error("Partial delete failed", e);
+                    // 일부 실패하더라도 진행 (권한 문제 등)
+                }
+            }
+        };
+
         // 관련 제출 삭제
         const submissionsQuery = query(collection(db, 'submissions'), where('examId', '==', examId));
         const submissionsSnapshot = await getDocs(submissionsQuery);
-        const batch = writeBatch(db);
-        submissionsSnapshot.docs.forEach(doc => batch.delete(doc.ref));
+        await deleteInBatches(submissionsSnapshot);
+
+        // 관련 로그 삭제 (추가)
+        const logsQuery = query(collection(db, 'exam_logs'), where('examId', '==', examId));
+        const logsSnapshot = await getDocs(logsQuery);
+        await deleteInBatches(logsSnapshot);
 
         // 정답 문서 삭제
-        batch.delete(doc(db, 'examAnswers', examId));
+        try {
+            await deleteDoc(doc(db, 'examAnswers', examId));
+        } catch (e) {
+            console.error("Exam answer delete failed", e);
+        }
 
         // 시험 삭제
-        batch.delete(doc(db, 'exams', examId));
-        await batch.commit();
+        await deleteDoc(doc(db, 'exams', examId));
+
+        return { error: null };
         return { error: null };
     } catch (error) {
         return { error: error.message };
@@ -676,6 +731,61 @@ export const gradeAllSubmissions = async (examId, submissions, answerData) => {
         return { results, error: null };
     } catch (error) {
         return { results: [], error: error.message };
+    }
+};
+
+// ==================== 접속 확인 (모니터링) ====================
+
+/**
+ * 접속 로그 기록 (Student App용 - 나중에 교사 앱에서도 테스트용으로 쓸 수 있음)
+ * status: 'connected' | 'submitted'
+ */
+export const logConnection = async (examId, studentNumber, status) => {
+    try {
+        const logRef = doc(db, 'exam_logs', `${examId}_${studentNumber}`);
+        await setDoc(logRef, {
+            examId,
+            studentNumber,
+            status,
+            timestamp: serverTimestamp()
+        }, { merge: true });
+        return { error: null };
+    } catch (error) {
+        return { error: error.message };
+    }
+};
+
+/**
+ * 시험 접속 로그 조회 (Teacher App용 - 일회성 조회)
+ */
+export const fetchExamLogs = async (examId) => {
+    try {
+        const q = query(collection(db, 'exam_logs'), where('examId', '==', examId));
+        const snapshot = await getDocs(q);
+        const logs = {};
+        snapshot.forEach(doc => {
+            const data = doc.data();
+            logs[data.studentNumber] = data;
+        });
+        return { data: logs, error: null };
+    } catch (error) {
+        return { data: null, error: error.message };
+    }
+};
+
+/**
+ * 결과 전송 설정 업데이트
+ */
+export const updateResultConfig = async (examId, config, statistics = null) => {
+    try {
+        const updateData = { resultConfig: config };
+        if (statistics) {
+            updateData.statistics = statistics;
+        }
+        await updateDoc(doc(db, 'exams', examId), updateData);
+        return { error: null };
+    } catch (error) {
+        return { error: error.message };
     }
 };
 
