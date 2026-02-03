@@ -42,7 +42,26 @@ function App() {
     }
 
     setLoading(false)
-    setScreen('answer')
+    setLoading(false)
+
+    // 이미 제출한 내역이 있는지 확인
+    const { data: existingSubmission } = await import('./lib/firebase').then(m => m.getMySubmission(exam.id, data.studentNumber || studentData.studentCode.studentNumber))
+
+    if (existingSubmission) {
+      setResult({
+        success: true,
+        examId: exam.id,
+        studentNumber: existingSubmission.studentNumber,
+        examTitle: exam.title,
+        subject: exam.subject,
+        totalQuestions: exam.questionCount, // or existingSubmission.answers.length
+        hasEssay: false, // You might need to derive this
+        essayCount: 0     // You might need to derive this
+      })
+      setScreen('complete')
+    } else {
+      setScreen('answer')
+    }
   }
 
   const handleSubmitComplete = (submitResult) => {

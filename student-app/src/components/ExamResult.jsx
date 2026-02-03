@@ -82,6 +82,9 @@ function ExamResult({ examData, submissionData, onBack }) {
 
     // 답안 렌더링 헬퍼
     const formatAnswer = (ans) => {
+        if (Array.isArray(ans) && ans.length === 1 && (ans[0] === 'O' || ans[0] === 'X')) {
+            return ans[0]
+        }
         if (Array.isArray(ans)) return ans.join(', ')
         return ans
     }
@@ -167,8 +170,8 @@ function ExamResult({ examData, submissionData, onBack }) {
                                         </div>
                                         {resultConfig.showAnswers && (
                                             <div className={`px-3 py-1 rounded-full text-sm font-bold ${item.correct === true ? 'bg-green-100 text-green-700' :
-                                                    item.correct === false ? 'bg-red-100 text-red-700' :
-                                                        'bg-yellow-100 text-yellow-700'
+                                                item.correct === false ? 'bg-red-100 text-red-700' :
+                                                    'bg-yellow-100 text-yellow-700'
                                                 }`}>
                                                 {item.correct === true ? '정답' :
                                                     item.correct === false ? '오답' : '부분점수/채점중'}

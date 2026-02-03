@@ -92,5 +92,17 @@ service cloud.firestore {
       // 수정/삭제: 해당 학급의 소유자만
       allow update, delete: if isClassOwner(resource.data.classId);
     }
+
+    // ==================== 접속 로그 (exam_logs) ====================
+    match /exam_logs/{logId} {
+      // 생성: 학생이 접속/제출 시 기록 (누구나 가능)
+      allow create: if true;
+      
+      // 읽기: 교사가 접속 현황 확인
+      allow read: if isSignedIn();
+      
+      // 삭제: 교사가 시험 삭제 시 함께 삭제
+      allow delete: if isSignedIn();
+    }
   }
 }

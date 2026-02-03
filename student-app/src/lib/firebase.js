@@ -112,6 +112,26 @@ export const checkExistingSubmission = async (examId, studentNumber) => {
 };
 
 /**
+ * 내 제출 확인 (일회성) - 데이터 반환
+ */
+export const getMySubmission = async (examId, studentNumber) => {
+    try {
+        const q = query(
+            collection(db, 'submissions'),
+            where('examId', '==', examId),
+            where('studentNumber', '==', studentNumber)
+        );
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+            return { data: { id: snapshot.docs[0].id, ...snapshot.docs[0].data() }, error: null };
+        }
+        return { data: null, error: null };
+    } catch (error) {
+        return { data: null, error: error.message };
+    }
+};
+
+/**
  * 시험 문항 정보 가져오기 (exams 컬렉션에서)
  * 
  * 보안 정책: 정답은 examAnswers에 있으며, 학생은 접근 불가

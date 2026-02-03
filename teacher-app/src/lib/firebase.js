@@ -504,6 +504,45 @@ export const subscribeToClassSubmissions = (classId, callback) => {
 };
 
 /**
+ * 내 제출 확인 (실시간)
+ */
+export const subscribeToMySubmission = (examId, studentNumber, callback) => {
+    const q = query(
+        collection(db, 'submissions'),
+        where('examId', '==', examId),
+        where('studentNumber', '==', studentNumber)
+    );
+
+    return onSnapshot(q, (snapshot) => {
+        if (!snapshot.empty) {
+            callback({ id: snapshot.docs[0].id, ...snapshot.docs[0].data() });
+        } else {
+            callback(null);
+        }
+    });
+};
+
+/**
+ * 내 제출 확인 (일회성)
+ */
+export const getMySubmission = async (examId, studentNumber) => {
+    try {
+        const q = query(
+            collection(db, 'submissions'),
+            where('examId', '==', examId),
+            where('studentNumber', '==', studentNumber)
+        );
+        const snapshot = await getDocs(q);
+        if (!snapshot.empty) {
+            return { data: { id: snapshot.docs[0].id, ...snapshot.docs[0].data() }, error: null };
+        }
+        return { data: null, error: null };
+    } catch (error) {
+        return { data: null, error: error.message };
+    }
+};
+
+/**
  * 시험 정답 조회 (별도 컬렉션에서)
  */
 export const getExamAnswers = async (examId) => {
