@@ -30,7 +30,8 @@ function App() {
           localStorage.removeItem('studentData')
         }
       }
-    }, [])
+    }
+  }, [])
 
   const handleCodeValidated = (data) => {
     localStorage.setItem('studentData', JSON.stringify(data))
