@@ -76,7 +76,8 @@ function SubmissionDetailModal({
         if (answer === null || answer === undefined) return '-'
 
         if (type === 'ox') {
-            return answer === 'O' || answer === true ? 'O' : 'X'
+            const val = Array.isArray(answer) ? answer[0] : answer
+            return val === 'O' || val === true ? 'O' : 'X'
         }
         if (type === 'short' || type === 'essay') {
             return String(answer)
@@ -139,10 +140,10 @@ function SubmissionDetailModal({
                             <div
                                 key={idx}
                                 className={`p-4 rounded-xl border-2 ${item.type === 'essay'
-                                        ? 'bg-orange-50 border-orange-200'
-                                        : item.correct
-                                            ? 'bg-green-50 border-green-200'
-                                            : 'bg-red-50 border-red-200'
+                                    ? 'bg-orange-50 border-orange-200'
+                                    : item.correct
+                                        ? 'bg-green-50 border-green-200'
+                                        : 'bg-red-50 border-red-200'
                                     }`}
                             >
                                 <div className="flex items-start justify-between">
@@ -151,8 +152,8 @@ function SubmissionDetailModal({
                                         <div className="flex items-center gap-2 mb-2">
                                             <span className="font-bold text-lg">{item.questionNum}번</span>
                                             <span className={`px-2 py-0.5 rounded text-xs ${item.type === 'essay'
-                                                    ? 'bg-orange-200 text-orange-800'
-                                                    : 'bg-gray-200 text-gray-600'
+                                                ? 'bg-orange-200 text-orange-800'
+                                                : 'bg-gray-200 text-gray-600'
                                                 }`}>
                                                 {item.type === 'choice4' ? '4지선다' :
                                                     item.type === 'choice5' ? '5지선다' :

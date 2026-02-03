@@ -156,7 +156,8 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
         if (!answer) return '-'
 
         if (type === 'ox') {
-            return answer === 'O' || answer === true ? 'O' : 'X'
+            const val = Array.isArray(answer) ? answer[0] : answer
+            return val === 'O' || val === true ? 'O' : 'X'
         }
         if (type === 'short' || type === 'essay') {
             return Array.isArray(answer) ? answer.join(', ') : answer
