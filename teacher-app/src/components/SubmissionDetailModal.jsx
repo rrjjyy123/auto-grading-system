@@ -1,5 +1,63 @@
 import { useState, useEffect } from 'react'
 import { updateSubmissionScore } from '../lib/firebase'
+import {
+    Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer
+} from 'recharts'
+
+function CategoryRadarChart({ itemResults }) {
+    if (!itemResults || itemResults.length === 0) return null;
+
+    // 카테고리별 데이터 가공
+    const stats = itemResults.reduce((acc, item) => {
+        const cat = item.category || '기타'; // 카테고리 없으면 '기타'
+        if (!acc[cat]) {
+            acc[cat] = { name: cat, total: 0, earned: 0, count: 0 };
+        }
+        acc[cat].total += item.maxPoints;
+        // 서술형 점수는 manualScores가 상위에서 관리되므로 여기서는 정확한 반영이 어려울 수 있음
+        // 하지만 itemResults는 이미 계산된 결과(correct 여부 등)를 담고 있을 수 있음.
+        // item.score (획득점수)가 있다면 사용.
+        // Dashboard나 ResultsView에서 이미 채점된 결과를 넘겨준다면 item.score 사용 가능.
+        // 만약 없다면 correct 여부로 추정.
+        if (item.score !== undefined) {
+            acc[cat].earned += item.score;
+        } else if (item.correct) {
+            acc[cat].earned += item.maxPoints;
+        }
+        acc[cat].count += 1;
+        return acc;
+    }, {});
+
+    const data = Object.values(stats).map(s => ({
+        subject: s.name,
+        A: s.total > 0 ? Math.round((s.earned / s.total) * 100) : 0,
+        fullMark: 100
+    }));
+
+    if (data.length < 3) {
+        // 데이터가 적을 때 모양 유지를 위해 더미 데이터 추가 가능하나, 
+        // 일단 그대로 둠.
+    }
+
+    return (
+        <div className="w-full h-[200px]">
+            <ResponsiveContainer width="100%" height="100%">
+                <RadarChart cx="50%" cy="50%" outerRadius="80%" data={data}>
+                    <PolarGrid />
+                    <PolarAngleAxis dataKey="subject" tick={{ fontSize: 12 }} />
+                    <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} />
+                    <Radar
+                        name="성취도"
+                        dataKey="A"
+                        stroke="#8884d8"
+                        fill="#8884d8"
+                        fillOpacity={0.6}
+                    />
+                </RadarChart>
+            </ResponsiveContainer>
+        </div>
+    );
+}
 
 /**
  * 개별 제출물 상세 보기 및 서술형 채점 모달
@@ -114,21 +172,29 @@ function SubmissionDetailModal({
                         </button>
                     </div>
 
+                </div>
+
+                {/* 차트 & 통계 - Recharts 추가 */}
+                <div className="px-6 py-4 bg-gray-50 border-b flex flex-col md:flex-row gap-6">
+                    <div className="flex-1 bg-white p-4 rounded-xl shadow-sm border border-gray-100 flex items-center justify-center">
+                        {/* 카테고리별 성취도 차트 */}
+                        <CategoryRadarChart itemResults={itemResults} />
+                    </div>
                     {/* 점수 요약 */}
-                    <div className="mt-4 flex gap-4">
-                        <div className="bg-white rounded-lg px-4 py-2">
-                            <span className="text-sm text-gray-500">자동 채점</span>
-                            <span className="ml-2 font-bold text-blue-600">{submission.autoScore || 0}점</span>
+                    <div className="flex-1 flex flex-col justify-center gap-3">
+                        <div className="flex justify-between items-center bg-white p-3 rounded-lg border">
+                            <span className="text-gray-500">자동 채점</span>
+                            <span className="font-bold text-blue-600">{submission.autoScore || 0}점</span>
                         </div>
-                        <div className="bg-white rounded-lg px-4 py-2">
-                            <span className="text-sm text-gray-500">서술형</span>
-                            <span className="ml-2 font-bold text-orange-600">
+                        <div className="flex justify-between items-center bg-white p-3 rounded-lg border">
+                            <span className="text-gray-500">서술형 채점</span>
+                            <span className="font-bold text-orange-600">
                                 +{Object.values(manualScores).reduce((sum, s) => sum + s, 0)}점
                             </span>
                         </div>
-                        <div className="bg-white rounded-lg px-4 py-2 border-2 border-green-500">
-                            <span className="text-sm text-gray-500">총점</span>
-                            <span className="ml-2 font-bold text-green-600">{calculateTotalScore()}점</span>
+                        <div className="flex justify-between items-center bg-blue-50 p-3 rounded-lg border border-blue-100">
+                            <span className="text-gray-700 font-bold">총점</span>
+                            <span className="text-xl font-extrabold text-blue-700">{calculateTotalScore()}점</span>
                         </div>
                     </div>
                 </div>

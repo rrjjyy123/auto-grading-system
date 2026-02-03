@@ -18,34 +18,75 @@ function App() {
     const params = new URLSearchParams(window.location.search)
     const codeParam = params.get('code')
     if (codeParam) {
-      // CodeEntry 컴포넌트에서 자동으로 처리됨
-    }
-  }, [])
+      // LocalStorage 확인
+      const savedData = localStorage.getItem('studentData')
+      if (savedData && !studentData) {
+        try {
+          const parsed = JSON.parse(savedData)
+          // 유효성 검증 로직을 거치거나 바로 설정
+          setStudentData(parsed)
+          setScreen('subject')
+        } catch (e) {
+          localStorage.removeItem('studentData')
+        }
+      }
+    }, [])
 
   const handleCodeValidated = (data) => {
+    localStorage.setItem('studentData', JSON.stringify(data))
     setStudentData(data)
     setScreen('subject')
   }
 
   const handleExamSelected = async (exam) => {
+    // 결과 확인 모드로 진입한 경우
+    if (exam.isResultCheck && exam.submission) {
+      setResult({
+        success: true,
+        examId: exam.id,
+        studentNumber: exam.submission.studentNumber,
+        examTitle: exam.title,
+        subject: exam.subject,
+        totalQuestions: exam.questionCount,
+        hasEssay: exam.submission.hasEssay || false,
+        essayCount: exam.submission.essayCount || 0
+      })
+      setScreen('complete')
+      return;
+    }
+
     setLoading(true)
 
     // 문항 정보 가져오기
-    const { data, error } = await getExamQuestions(exam.id)
+    const { data: questionData, error } = await getExamQuestions(exam.id)
 
-    if (data && data.questions) {
+    if (questionData && questionData.questions) {
       // 새 형식 - questions 정보 포함
-      setSelectedExam({ ...exam, questions: data.questions })
+      // 여기서 questions에는 정답 정보가 포함되어 있지 않으므로 안전함 (firebase getExamQuestions 확인 필요: questionTypes만 반환함)
+      setSelectedExam({ ...exam, questions: questionData.questions })
     } else {
       // 기존 형식 또는 에러 시 원래 exam 데이터 사용
       setSelectedExam(exam)
     }
 
     setLoading(false)
-    setLoading(false)
 
-    // 이미 제출한 내역이 있는지 확인
-    const { data: existingSubmission } = await import('./lib/firebase').then(m => m.getMySubmission(exam.id, data.studentNumber || studentData.studentCode.studentNumber))
+    const studentNum = exam.submission?.studentNumber || studentData.studentCode.studentNumber;
+
+    // 이미 제출한 내역이 있는지 확인 (중복 체크)
+    // pass exam.submission if available to skip fetching
+    let existingSubmission = exam.submission;
+
+    if (!existingSubmission) {
+      const { data: sub } = await import('./lib/firebase').then(m => m.getMySubmission(exam.id, studentNum));
+      existingSubmission = sub;
+    }
+
+    // 재응시 허용 시
+    if (exam.allowRetake) {
+      setScreen('answer')
+      return
+    }
 
     if (existingSubmission) {
       setResult({
@@ -54,9 +95,9 @@ function App() {
         studentNumber: existingSubmission.studentNumber,
         examTitle: exam.title,
         subject: exam.subject,
-        totalQuestions: exam.questionCount, // or existingSubmission.answers.length
-        hasEssay: false, // You might need to derive this
-        essayCount: 0     // You might need to derive this
+        totalQuestions: exam.questionCount,
+        hasEssay: existingSubmission.hasEssay || false,
+        essayCount: existingSubmission.essayCount || 0
       })
       setScreen('complete')
     } else {
@@ -70,11 +111,20 @@ function App() {
   }
 
   const handleRestart = () => {
+    // 처음으로 돌아가기(목록으로)
+    setScreen('subject')
+    setSelectedExam(null)
+    setResult(null)
+    // URL 파라미터 보존 (재장전 시 자동로그인 위해? 아니면 제거?)
+    // 보통 목록으로 가면 파라미터 없어도 됨
+  }
+
+  const handleLogout = () => {
+    localStorage.removeItem('studentData')
     setScreen('code')
     setStudentData(null)
     setSelectedExam(null)
     setResult(null)
-    // URL 파라미터 제거
     window.history.replaceState({}, '', window.location.pathname)
   }
 
@@ -87,7 +137,7 @@ function App() {
         <SubjectSelect
           studentData={studentData}
           onSelectExam={handleExamSelected}
-          onBack={() => setScreen('code')}
+          onBack={handleLogout}
         />
       )}
       {screen === 'answer' && studentData && selectedExam && (

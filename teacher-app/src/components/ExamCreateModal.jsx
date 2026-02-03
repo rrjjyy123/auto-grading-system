@@ -11,10 +11,9 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
 
     // Step 1: 기본 설정
     const [examSubject, setExamSubject] = useState('')
-    const [examTitle, setExamTitle] = useState('')
-    const [defaultType, setDefaultType] = useState('choice5')
     const [questionCount, setQuestionCount] = useState(25)
     const [timeLimit, setTimeLimit] = useState(0)
+    const [allowRetake, setAllowRetake] = useState(false)
 
     // Step 2: 문항별 설정
     const [questions, setQuestions] = useState([])
@@ -266,7 +265,8 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
             totalPoints: getTotalPoints(),
             autoGradablePoints: getAutoGradablePoints(),
             manualGradablePoints: getEssayPoints(),
-            timeLimit
+            timeLimit,
+            allowRetake
         }
 
         await onSubmit(examData)
@@ -360,13 +360,24 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
                                 </div>
                                 <div>
                                     <label className="block text-sm font-medium text-gray-700 mb-2">제한시간 (분, 0=무제한)</label>
-                                    <input
-                                        type="number"
-                                        value={timeLimit}
-                                        onChange={(e) => setTimeLimit(parseInt(e.target.value) || 0)}
-                                        min="0"
-                                        className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                    />
+                                    <div className="flex gap-2">
+                                        <input
+                                            type="number"
+                                            value={timeLimit}
+                                            onChange={(e) => setTimeLimit(parseInt(e.target.value) || 0)}
+                                            min="0"
+                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                                        />
+                                    </div>
+                                    <label className="flex items-center gap-2 mt-2 cursor-pointer text-sm text-gray-600">
+                                        <input
+                                            type="checkbox"
+                                            checked={allowRetake}
+                                            onChange={(e) => setAllowRetake(e.target.checked)}
+                                            className="w-4 h-4 text-blue-500 rounded focus:ring-blue-500"
+                                        />
+                                        제출 후 재응시 허용
+                                    </label>
                                 </div>
                             </div>
 

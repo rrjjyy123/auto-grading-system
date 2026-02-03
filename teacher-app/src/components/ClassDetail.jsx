@@ -253,7 +253,7 @@ function ClassDetail({ classData, onBack }) {
                                                     : 'bg-green-100 text-green-700 hover:bg-green-200'
                                                     }`}
                                             >
-                                                {exam.isActive ? '마감하기' : '재개하기'}
+                                                {exam.isActive ? '⛔ 배포 마감' : '✅ 배포 시작'}
                                             </button>
                                             <button
                                                 onClick={() => handleEditExam(exam)}

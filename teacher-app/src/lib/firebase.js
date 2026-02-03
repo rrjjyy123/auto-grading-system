@@ -430,15 +430,23 @@ export const deleteExam = async (examId) => {
             }
         };
 
-        // 관련 제출 삭제
-        const submissionsQuery = query(collection(db, 'submissions'), where('examId', '==', examId));
-        const submissionsSnapshot = await getDocs(submissionsQuery);
-        await deleteInBatches(submissionsSnapshot);
+        // 관련 제출 삭제 (에러 무시)
+        try {
+            const submissionsQuery = query(collection(db, 'submissions'), where('examId', '==', examId));
+            const submissionsSnapshot = await getDocs(submissionsQuery);
+            await deleteInBatches(submissionsSnapshot);
+        } catch (e) {
+            console.error("Submissions delete failed", e);
+        }
 
-        // 관련 로그 삭제 (추가)
-        const logsQuery = query(collection(db, 'exam_logs'), where('examId', '==', examId));
-        const logsSnapshot = await getDocs(logsQuery);
-        await deleteInBatches(logsSnapshot);
+        // 관련 로그 삭제 (에러 무시)
+        try {
+            const logsQuery = query(collection(db, 'exam_logs'), where('examId', '==', examId));
+            const logsSnapshot = await getDocs(logsQuery);
+            await deleteInBatches(logsSnapshot);
+        } catch (e) {
+            console.error("Logs delete failed", e);
+        }
 
         // 정답 문서 삭제
         try {
@@ -450,7 +458,6 @@ export const deleteExam = async (examId) => {
         // 시험 삭제
         await deleteDoc(doc(db, 'exams', examId));
 
-        return { error: null };
         return { error: null };
     } catch (error) {
         return { error: error.message };
