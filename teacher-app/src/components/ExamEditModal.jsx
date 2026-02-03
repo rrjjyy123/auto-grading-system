@@ -298,8 +298,8 @@ function ExamEditModal({ exam, answerData, onSave, onClose }) {
                                                             key={i}
                                                             onClick={() => toggleAnswer(idx, value)}
                                                             className={`w-10 h-10 rounded-lg font-bold transition-all ${isSelected
-                                                                    ? 'bg-green-500 text-white'
-                                                                    : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                                ? 'bg-green-500 text-white'
+                                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                                                 }`}
                                                         >
                                                             {label}
@@ -317,8 +317,8 @@ function ExamEditModal({ exam, answerData, onSave, onClose }) {
                                                         key={val}
                                                         onClick={() => updateQuestion(idx, { correctAnswers: [val] })}
                                                         className={`w-12 h-12 rounded-lg font-bold text-xl transition-all ${q.correctAnswers?.[0] === val
-                                                                ? 'bg-green-500 text-white'
-                                                                : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+                                                            ? 'bg-green-500 text-white'
+                                                            : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
                                                             }`}
                                                     >
                                                         {val}
@@ -342,6 +342,29 @@ function ExamEditModal({ exam, answerData, onSave, onClose }) {
                                         {q.type === 'essay' && (
                                             <span className="text-gray-500 text-sm">수동 채점 필요</span>
                                         )}
+                                    </div>
+
+                                    {/* 추가 설정: 영역 & 해설 */}
+                                    <div className="mt-4 pt-4 border-t border-gray-100 grid grid-cols-1 md:grid-cols-2 gap-4">
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">영역 (Category)</label>
+                                            <input
+                                                type="text"
+                                                value={q.category || ''}
+                                                onChange={(e) => updateQuestion(idx, { category: e.target.value })}
+                                                placeholder="예: 집합, 방정식"
+                                                className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 focus:bg-white transition-colors"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-xs font-bold text-gray-500 mb-1">해설 (Explanation)</label>
+                                            <textarea
+                                                value={q.explanation || ''}
+                                                onChange={(e) => updateQuestion(idx, { explanation: e.target.value })}
+                                                placeholder="문제 풀이 과정 설명"
+                                                className="w-full px-3 py-2 border rounded-lg text-sm bg-gray-50 focus:bg-white h-[42px] focus:h-24 resize-none transition-all"
+                                            />
+                                        </div>
                                     </div>
                                 </div>
                             ))}

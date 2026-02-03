@@ -12,6 +12,7 @@ function ExamCreateModal({ classData, onClose, onSubmit }) {
     // Step 1: 기본 설정
     const [examSubject, setExamSubject] = useState('')
     const [examTitle, setExamTitle] = useState('')
+    const [defaultType, setDefaultType] = useState('choice4')
     const [questionCount, setQuestionCount] = useState(25)
     const [timeLimit, setTimeLimit] = useState(0)
     const [allowRetake, setAllowRetake] = useState(false)
