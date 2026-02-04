@@ -871,6 +871,22 @@ export const updateResultConfig = async (examId, config, statistics = null) => {
                             correctAnswer: questions[idx]?.correctAnswers || null
                         }));
                         batch.update(subDoc.ref, { itemResults: enrichedResults });
+                    } else if (subData.answers && Array.isArray(subData.answers)) {
+                        // itemResults가 없으면 answers에서 새로 생성
+                        const newItemResults = subData.answers.map((answer, idx) => {
+                            const question = questions[idx] || {};
+                            const studentAnswer = answer?.value ?? answer;
+                            return {
+                                questionNum: idx + 1,
+                                type: question.type || 'choice4',
+                                studentAnswer: studentAnswer,
+                                correctAnswer: question.correctAnswers || null,
+                                correct: null,  // 채점 정보 없음
+                                points: 0,
+                                maxPoints: question.points || 4
+                            };
+                        });
+                        batch.update(subDoc.ref, { itemResults: newItemResults });
                     }
                 });
                 await batch.commit();
