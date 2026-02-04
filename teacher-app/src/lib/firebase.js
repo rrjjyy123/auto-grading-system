@@ -608,7 +608,7 @@ export const gradeSubmission = (submission, answerData) => {
             itemResults.push({
                 questionNum: idx + 1,
                 type: question.type,
-                correctAnswer: question.correctAnswers,
+                correctAnswer: question.correctAnswers, // Keep for teacher app display
                 studentAnswer: studentAnswer?.value ?? studentAnswer,
                 correct: isCorrect,
                 points: earnedPoints,
@@ -731,6 +731,11 @@ export const updateSubmissionScore = async (submissionId, scoreData) => {
             gradedAt: serverTimestamp()
         };
 
+        // 문항별 채점 결과 저장 (학생 결과 상세 표시용)
+        if (scoreData.itemResults !== undefined) {
+            updateData.itemResults = scoreData.itemResults;
+        }
+
         // 서술형 수동 채점 정보
         if (scoreData.manualScores !== undefined) {
             updateData.manualScores = scoreData.manualScores;
@@ -759,10 +764,18 @@ export const gradeAllSubmissions = async (examId, submissions, answerData) => {
         const gradeResult = gradeSubmission(submission, answerData);
 
         const submissionRef = doc(db, 'submissions', submission.id);
+        // 보안: itemResults에서 correctAnswer 제거 (F12 정답 유출 방지)
+        // 정답은 교사가 '결과 전송' 시 showAnswers 활성화하면 그때 추가됨
+        const safeItemResults = gradeResult.itemResults.map(item => {
+            const { correctAnswer, ...rest } = item;
+            return rest;
+        });
+
         batch.update(submissionRef, {
             score: gradeResult.autoScore,
             correctCount: gradeResult.correctCount,
             autoScore: gradeResult.autoScore,
+            itemResults: safeItemResults, // correctAnswer 제외된 버전 저장
             graded: true,
             gradedAt: serverTimestamp()
         });
@@ -823,6 +836,7 @@ export const fetchExamLogs = async (examId) => {
 
 /**
  * 결과 전송 설정 업데이트
+ * showAnswers가 활성화되면 submissions에 correctAnswer를 주입
  */
 export const updateResultConfig = async (examId, config, statistics = null) => {
     try {
@@ -831,6 +845,38 @@ export const updateResultConfig = async (examId, config, statistics = null) => {
             updateData.statistics = statistics;
         }
         await updateDoc(doc(db, 'exams', examId), updateData);
+
+        // showAnswers가 활성화되면 submissions에 correctAnswer 주입
+        if (config.showAnswers) {
+            // 정답 데이터 가져오기
+            const answersDoc = await getDoc(doc(db, 'examAnswers', examId));
+            if (answersDoc.exists()) {
+                const answerData = answersDoc.data();
+                const questions = answerData.questions || [];
+
+                // 해당 시험의 모든 submissions 업데이트
+                const subsQuery = query(
+                    collection(db, 'submissions'),
+                    where('examId', '==', examId)
+                );
+                const subsSnapshot = await getDocs(subsQuery);
+
+                const batch = writeBatch(db);
+                subsSnapshot.docs.forEach(subDoc => {
+                    const subData = subDoc.data();
+                    if (subData.itemResults && Array.isArray(subData.itemResults)) {
+                        // correctAnswer 주입
+                        const enrichedResults = subData.itemResults.map((item, idx) => ({
+                            ...item,
+                            correctAnswer: questions[idx]?.correctAnswers || null
+                        }));
+                        batch.update(subDoc.ref, { itemResults: enrichedResults });
+                    }
+                });
+                await batch.commit();
+            }
+        }
+
         return { error: null };
     } catch (error) {
         return { error: error.message };
