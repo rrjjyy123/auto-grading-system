@@ -314,6 +314,23 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
         return distribution
     }
 
+    // 이전/다음 학생 이동 핸들러
+    const handlePrevSubmission = () => {
+        if (!selectedSubmission) return
+        const currentIndex = sortedSubmissions.findIndex(s => s.id === selectedSubmission.id)
+        if (currentIndex > 0) {
+            setSelectedSubmission(sortedSubmissions[currentIndex - 1])
+        }
+    }
+
+    const handleNextSubmission = () => {
+        if (!selectedSubmission) return
+        const currentIndex = sortedSubmissions.findIndex(s => s.id === selectedSubmission.id)
+        if (currentIndex < sortedSubmissions.length - 1) {
+            setSelectedSubmission(sortedSubmissions[currentIndex + 1])
+        }
+    }
+
     return (
         <div className="min-h-screen p-4 md:p-6">
             <div className="max-w-7xl mx-auto">
@@ -649,6 +666,10 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                     itemResults={selectedSubmission.itemResults}
                     onClose={() => setSelectedSubmission(null)}
                     onUpdate={onRefresh}
+                    hasPrev={sortedSubmissions.findIndex(s => s.id === selectedSubmission.id) > 0}
+                    hasNext={sortedSubmissions.findIndex(s => s.id === selectedSubmission.id) < sortedSubmissions.length - 1}
+                    onPrev={handlePrevSubmission}
+                    onNext={handleNextSubmission}
                 />
             )}
             {/* 결과 전송 설정 모달 */}

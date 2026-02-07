@@ -516,6 +516,84 @@ export const updateExam = async (examId, classId, examData) => {
 };
 
 /**
+ * 시험 수정 시 모든 제출물 재채점
+ * @param {string} examId
+ * @param {object} newExamData - 수정된 시험 데이터 (정답 포함)
+ */
+export const regradeAllSubmissions = async (examId, newExamData) => {
+    try {
+        const submissionsQuery = query(collection(db, 'submissions'), where('examId', '==', examId));
+        const snapshot = await getDocs(submissionsQuery);
+
+        if (snapshot.empty) return { success: true, count: 0 };
+
+        const batch = writeBatch(db);
+        let count = 0;
+
+        snapshot.docs.forEach(doc => {
+            const submission = { id: doc.id, ...doc.data() };
+            // 기존 수동 채점 데이터 보존
+            const manualScores = submission.manualScores || {};
+            const overrides = submission.overrides || {};
+
+            // 재채점 수행
+            const { itemResults, correctCount, autoScore } = gradeSubmission(submission, newExamData);
+
+            // 수동 점수 및 오버라이드 재적용
+            let finalScore = 0;
+            const updatedItemResults = itemResults.map(item => {
+                const newItem = { ...item };
+
+                // 서술형 점수 반영
+                if (item.type === 'essay') {
+                    if (manualScores[item.questionNum] !== undefined) {
+                        newItem.score = manualScores[item.questionNum];
+                        // 만점이면 정답 처리 (단순화)
+                        newItem.correct = newItem.score === item.maxPoints;
+                    }
+                }
+
+                // 오버라이드 반영
+                if (overrides[item.questionNum] !== undefined) {
+                    newItem.correct = overrides[item.questionNum];
+                }
+
+                // 점수 합산
+                if (newItem.type === 'essay') {
+                    finalScore += newItem.score || 0;
+                } else {
+                    // 오버라이드/자동채점 결과에 따른 점수
+                    finalScore += newItem.correct ? newItem.maxPoints : 0;
+                }
+
+                return newItem;
+            });
+
+            // 업데이트 데이터 준비
+            const updateData = {
+                score: finalScore,
+                correctCount: submission.correctCount, // 일단 기존 유지 또는 재계산 필요? -> 재계산 필요함
+                autoScore: autoScore, // 재계산된 자동 채점 점수
+                itemResults: updatedItemResults,
+                // answers는 학생이 제출한 답이므로 변경 없음
+            };
+
+            // 정답 수 재계산 (오버라이드 반영된 결과 기준)
+            updateData.correctCount = updatedItemResults.filter(item => item.correct).length;
+
+            batch.update(doc.ref, updateData);
+            count++;
+        });
+
+        await batch.commit();
+        return { success: true, count };
+    } catch (error) {
+        console.error('Regrading failed:', error);
+        return { error: error.message };
+    }
+};
+
+/**
  * 학급의 시험 목록 조회 (실시간)
  */
 export const subscribeToExams = (classId, callback) => {
@@ -583,6 +661,52 @@ export const deleteExam = async (examId) => {
 
         return { error: null };
     } catch (error) {
+        return { error: error.message };
+    }
+};
+
+/**
+ * 시험 복제
+ */
+export const copyExam = async (originalExamId) => {
+    try {
+        // 1. 원본 시험 데이터 조회
+        const examSnap = await getDoc(doc(db, 'exams', originalExamId));
+        if (!examSnap.exists()) throw new Error('원본 시험을 찾을 수 없습니다.');
+        const examData = examSnap.data();
+
+        // 2. 원본 정답 데이터 조회
+        const answerSnap = await getDoc(doc(db, 'examAnswers', originalExamId));
+        if (!answerSnap.exists()) throw new Error('원본 정답 데이터를 찾을 수 없습니다.');
+        const answerData = answerSnap.data();
+
+        // 3. 새 시험 데이터 준비
+        const newExamData = {
+            ...examData,
+            title: `${examData.title} - 복사본`,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp(),
+            isActive: false // 복제된 시험은 비활성 상태로 시작
+        };
+        delete newExamData.id; // ID는 새로 생성됨
+
+        // 4. 새 시험 생성 (exams 컬렉션)
+        const newExamRef = await addDoc(collection(db, 'exams'), newExamData);
+
+        // 5. 새 정답 데이터 생성 (examAnswers 컬렉션)
+        const newAnswerData = {
+            ...answerData,
+            examId: newExamRef.id,
+            createdAt: serverTimestamp(),
+            updatedAt: serverTimestamp()
+        };
+        delete newAnswerData.id;
+
+        await setDoc(doc(db, 'examAnswers', newExamRef.id), newAnswerData);
+
+        return { data: { id: newExamRef.id }, error: null };
+    } catch (error) {
+        console.error('Copy exam failed:', error);
         return { error: error.message };
     }
 };

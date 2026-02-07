@@ -6,7 +6,9 @@ import {
     deleteExam,
     toggleExamActive,
     subscribeToClassSubmissions,
-    getExamAnswers
+    getExamAnswers,
+    regradeAllSubmissions,
+    copyExam
 } from '../lib/firebase'
 import ResultsView from './ResultsView'
 import ExamCreateModal from './ExamCreateModal'
@@ -23,6 +25,7 @@ function ClassDetail({ classData, onBack, initialTab = 'exams', onTabChange }) {
     const [selectedExam, setSelectedExam] = useState(null)
     const [editingExam, setEditingExam] = useState(null)
     const [monitorExam, setMonitorExam] = useState(null)
+    const [selectedExamIds, setSelectedExamIds] = useState(new Set()) // 다중 선택용
 
     // 탭 상태: 'exams' | 'students'
     const [activeTab, setActiveTab] = useState(initialTab)
@@ -78,6 +81,63 @@ function ClassDetail({ classData, onBack, initialTab = 'exams', onTabChange }) {
         }
     }
 
+    // 시험 복제 핸들러
+    const handleCopyExam = async (examId, examTitle) => {
+        if (!confirm(`"${examTitle}" 시험을 복제하시겠습니까?`)) {
+            return
+        }
+        const { error } = await copyExam(examId)
+        if (error) {
+            toastError('복제 실패: ' + error)
+        } else {
+            success('시험이 복제되었습니다')
+        }
+    }
+
+    // 다중 선택 핸들러
+    const toggleExamSelection = (examId) => {
+        const newSelected = new Set(selectedExamIds)
+        if (newSelected.has(examId)) {
+            newSelected.delete(examId)
+        } else {
+            newSelected.add(examId)
+        }
+        setSelectedExamIds(newSelected)
+    }
+
+    // 전체 선택/해제 핸들러
+    const toggleAllSelection = () => {
+        if (selectedExamIds.size === exams.length) {
+            setSelectedExamIds(new Set())
+        } else {
+            setSelectedExamIds(new Set(exams.map(e => e.id)))
+        }
+    }
+
+    // 선택된 시험 일괄 삭제
+    const handleDeleteSelected = async () => {
+        if (selectedExamIds.size === 0) return
+        if (!confirm(`선택한 ${selectedExamIds.size}개의 시험을 삭제하시겠습니까?\n삭제된 데이터는 복구할 수 없습니다.`)) {
+            return
+        }
+
+        let successCount = 0
+        let failCount = 0
+
+        for (const examId of selectedExamIds) {
+            const { error } = await deleteExam(examId)
+            if (error) failCount++
+            else successCount++
+        }
+
+        if (failCount > 0) {
+            toastError(`${successCount}개 삭제 성공, ${failCount}개 삭제 실패`)
+        } else {
+            success(`${successCount}개의 시험이 삭제되었습니다`)
+        }
+        setSelectedExamIds(new Set())
+    }
+
     // 시험 수정 핸들러
     const handleEditExam = async (exam) => {
         const { data, error } = await getExamAnswers(exam.id)
@@ -97,8 +157,19 @@ function ClassDetail({ classData, onBack, initialTab = 'exams', onTabChange }) {
             toastError('시험 수정 실패: ' + error)
             return
         }
+        // 자동 재채점 실행
+        success('시험이 수정되었습니다. 재채점을 진행합니다...')
+        const { success: regradeSuccess, count, error: regradeError } = await regradeAllSubmissions(editingExam.exam.id, examData)
+
+        if (regradeError) {
+            toastError('재채점 중 오류 발생: ' + regradeError)
+        } else if (count > 0) {
+            success(`${count}명의 학생 답안이 재채점되었습니다.`)
+        } else {
+            success('시험이 수정되었습니다.')
+        }
+
         setEditingExam(null)
-        success('시험이 수정되었습니다!')
     }
 
     const getExamSubmissionCount = (examId) => {
@@ -240,14 +311,37 @@ function ClassDetail({ classData, onBack, initialTab = 'exams', onTabChange }) {
                 {/* 탭 콘텐츠 */}
                 {activeTab === 'exams' && (
                     <>
-                        {/* 시험 생성 버튼 */}
-                        <div className="mb-6">
-                            <button
-                                onClick={() => setShowCreateExam(true)}
-                                className="px-6 py-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 transition-colors"
-                            >
-                                + 새 시험 만들기
-                            </button>
+                        {/* 시험 생성 및 일괄 작업 버튼 */}
+                        <div className="mb-6 flex justify-between items-center">
+                            <div className="flex gap-2">
+                                <button
+                                    onClick={() => setShowCreateExam(true)}
+                                    className="px-6 py-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 transition-colors"
+                                >
+                                    + 새 시험 만들기
+                                </button>
+                                {selectedExamIds.size > 0 && (
+                                    <button
+                                        onClick={handleDeleteSelected}
+                                        className="px-4 py-3 bg-red-100 text-red-600 rounded-xl font-semibold hover:bg-red-200 transition-colors"
+                                    >
+                                        선택 삭제 ({selectedExamIds.size})
+                                    </button>
+                                )}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                                {exams.length > 0 && (
+                                    <label className="flex items-center gap-2 cursor-pointer hover:text-gray-700">
+                                        <input
+                                            type="checkbox"
+                                            checked={exams.length > 0 && selectedExamIds.size === exams.length}
+                                            onChange={toggleAllSelection}
+                                            className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        전체 선택
+                                    </label>
+                                )}
+                            </div>
                         </div>
 
                         {/* 시험 목록 */}
@@ -283,32 +377,42 @@ function ClassDetail({ classData, onBack, initialTab = 'exams', onTabChange }) {
                                                 }`}
                                         >
                                             <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                                <div className="flex-1">
-                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-sm font-semibold">
-                                                            {exam.subject}
-                                                        </span>
-                                                        <h3 className="text-lg font-bold text-gray-800">{exam.title}</h3>
-                                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${exam.isActive
-                                                            ? 'bg-green-200 text-green-800'
-                                                            : 'bg-gray-300 text-gray-600'
-                                                            }`}>
-                                                            {exam.isActive ? '진행중' : '마감'}
-                                                        </span>
+                                                <div className="flex items-start gap-4 flex-1">
+                                                    <div className="pt-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={selectedExamIds.has(exam.id)}
+                                                            onChange={() => toggleExamSelection(exam.id)}
+                                                            className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                        />
                                                     </div>
-                                                    <p className="text-gray-500 text-sm">
-                                                        {exam.questionCount}문항
-                                                        {exam.totalPoints ? (
-                                                            <> • {exam.totalPoints}점 만점</>
-                                                        ) : (
-                                                            <> × {exam.pointsPerQuestion}점 = {exam.questionCount * exam.pointsPerQuestion}점 만점</>
-                                                        )}
-                                                        {exam.manualGradablePoints > 0 && (
-                                                            <span className="text-yellow-600"> (서술형 {exam.manualGradablePoints}점)</span>
-                                                        )}
-                                                        {exam.timeLimit > 0 && ` • 제한시간 ${exam.timeLimit}분`}
-                                                        {' • '}응시 {getExamSubmissionCount(exam.id)}/{classData.studentCount}명
-                                                    </p>
+                                                    <div className="flex-1">
+                                                        <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                            <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-sm font-semibold">
+                                                                {exam.subject}
+                                                            </span>
+                                                            <h3 className="text-lg font-bold text-gray-800">{exam.title}</h3>
+                                                            <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${exam.isActive
+                                                                ? 'bg-green-200 text-green-800'
+                                                                : 'bg-gray-300 text-gray-600'
+                                                                }`}>
+                                                                {exam.isActive ? '진행중' : '마감'}
+                                                            </span>
+                                                        </div>
+                                                        <p className="text-gray-500 text-sm">
+                                                            {exam.questionCount}문항
+                                                            {exam.totalPoints ? (
+                                                                <> • {exam.totalPoints}점 만점</>
+                                                            ) : (
+                                                                <> × {exam.pointsPerQuestion}점 = {exam.questionCount * exam.pointsPerQuestion}점 만점</>
+                                                            )}
+                                                            {exam.manualGradablePoints > 0 && (
+                                                                <span className="text-yellow-600"> (서술형 {exam.manualGradablePoints}점)</span>
+                                                            )}
+                                                            {exam.timeLimit > 0 && ` • 제한시간 ${exam.timeLimit}분`}
+                                                            {' • '}응시 {getExamSubmissionCount(exam.id)}/{classData.studentCount}명
+                                                        </p>
+                                                    </div>
                                                 </div>
                                                 <div className="flex flex-wrap gap-2">
                                                     <button
@@ -347,6 +451,12 @@ function ClassDetail({ classData, onBack, initialTab = 'exams', onTabChange }) {
                                                         className="px-4 py-2 bg-purple-100 text-purple-600 rounded-lg font-semibold hover:bg-purple-200 transition-colors text-sm"
                                                     >
                                                         ✏️ 수정
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleCopyExam(exam.id, exam.title)}
+                                                        className="px-4 py-2 bg-gray-100 text-gray-600 rounded-lg font-semibold hover:bg-gray-200 transition-colors text-sm"
+                                                    >
+                                                        복제
                                                     </button>
                                                     <button
                                                         onClick={() => handleDeleteExam(exam.id, exam.title)}

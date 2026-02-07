@@ -77,7 +77,11 @@ function SubmissionDetailModal({
     answerData,
     itemResults,
     onClose,
-    onUpdate
+    onUpdate,
+    hasPrev,
+    hasNext,
+    onPrev,
+    onNext
 }) {
     const [manualScores, setManualScores] = useState({})
     const [overrides, setOverrides] = useState({}) // 수동 재채점 오버라이드
@@ -190,10 +194,16 @@ function SubmissionDetailModal({
         // 정답 수 재계산
         const newCorrectCount = updatedItemResults.filter(item => item.correct).length
 
+        // 자동 채점 점수 재계산 (서술형 제외)
+        const newAutoScore = updatedItemResults.reduce((sum, item) => {
+            if (item.type === 'essay') return sum
+            return sum + (item.correct ? item.maxPoints : 0)
+        }, 0)
+
         const { error } = await updateSubmissionScore(submission.id, {
             score: totalScore,
             correctCount: newCorrectCount,
-            autoScore: submission.autoScore,
+            autoScore: newAutoScore,
             manualScores: manualScores,
             overrides: overrides,
             manualGradingComplete: allEssaysGraded || Object.keys(manualScores).length > 0,
@@ -244,14 +254,43 @@ function SubmissionDetailModal({
                                 {examData.subject} - {examData.title}
                             </p>
                         </div>
-                        <button
-                            onClick={onClose}
-                            className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
-                        >
-                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                            </svg>
-                        </button>
+                        <div className="flex gap-2">
+                            <button
+                                onClick={onPrev}
+                                disabled={!hasPrev}
+                                className={`p-2 rounded-lg transition-colors ${hasPrev
+                                    ? 'hover:bg-gray-200 text-gray-600'
+                                    : 'text-gray-300 cursor-not-allowed'
+                                    }`}
+                                title="이전 학생"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+                                </svg>
+                            </button>
+                            <button
+                                onClick={onNext}
+                                disabled={!hasNext}
+                                className={`p-2 rounded-lg transition-colors ${hasNext
+                                    ? 'hover:bg-gray-200 text-gray-600'
+                                    : 'text-gray-300 cursor-not-allowed'
+                                    }`}
+                                title="다음 학생"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                                </svg>
+                            </button>
+                            <div className="w-px h-6 bg-gray-300 mx-2 self-center"></div>
+                            <button
+                                onClick={onClose}
+                                className="p-2 hover:bg-gray-200 rounded-lg transition-colors"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
                     </div>
 
                 </div>

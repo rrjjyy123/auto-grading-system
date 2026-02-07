@@ -134,6 +134,12 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
         if (!examTitle.trim()) return toastError('시험 이름을 입력하세요')
         if (questionCount < 1 || questionCount > 100) return toastError('문항 수는 1~100 사이로 입력하세요')
 
+        // 기존 문항이 있고 문항 수가 같다면 초기화하지 않고 이동 (이름/과목만 수정 시 데이터 보존)
+        if (questions.length === questionCount) {
+            setStep(2)
+            return
+        }
+
         const basePoints = Math.floor(100 / questionCount)
         const remainder = 100 - (basePoints * questionCount)
 
@@ -1091,10 +1097,10 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
                 {/* 푸터 */}
                 <div className="p-4 border-t bg-gray-50 flex justify-between">
                     <button
-                        onClick={step === 1 ? onClose : (isEditMode ? onClose : () => setStep(1))}
+                        onClick={step === 1 ? onClose : () => setStep(1)}
                         className="px-6 py-2 text-gray-600 hover:text-gray-800"
                     >
-                        {step === 1 ? '취소' : (isEditMode ? '취소' : '← 이전')}
+                        {step === 1 ? '취소' : '← 이전'}
                     </button>
 
                     {step === 1 ? (
