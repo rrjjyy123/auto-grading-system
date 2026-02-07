@@ -8,6 +8,9 @@ import {
 } from '../lib/firebase'
 import QRGenerator from './QRGenerator'
 import { useToast } from './Toast'
+import {
+    LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer
+} from 'recharts'
 
 /**
  * 학생 관리 컴포넌트
@@ -352,44 +355,110 @@ function StudentManagement({ classData, exams }) {
 /**
  * 학생 상세 모달 - 시험 결과 목록 + 성적 통계 + 과목 필터
  */
+/**
+ * 학생 상세 모달 - 시험 결과 목록 + 성적 통계 + 과목 필터 + 성적 추이 그래프
+ */
 function StudentDetailModal({ student, stats, exams, onClose }) {
     const [selectedSubject, setSelectedSubject] = useState('all')
+    const [selectedSubmissionIds, setSelectedSubmissionIds] = useState(new Set())
+
     const submissions = stats?.submissions || []
 
     // 과목 목록 추출
     const subjects = useMemo(() => {
         const subjectSet = new Set()
         submissions.forEach(sub => {
-            if (sub.subject) subjectSet.add(sub.subject)
+            // exams prop에서 과목 정보 우선 확인
+            const exam = exams?.find(e => e.id === sub.examId)
+            const subject = exam?.subject || sub.subject
+            if (subject) subjectSet.add(subject)
         })
         return [...subjectSet].sort()
-    }, [submissions])
+    }, [submissions, exams])
 
-    // 필터링된 제출물
+    // 필터링된 제출물 (과목 선택)
     const filteredSubmissions = useMemo(() => {
-        if (selectedSubject === 'all') return submissions
-        return submissions.filter(sub => sub.subject === selectedSubject)
-    }, [submissions, selectedSubject])
-
-    // 필터링된 통계
-    const filteredStats = useMemo(() => {
-        const gradedSubs = filteredSubmissions.filter(sub => sub.graded)
-        const totalScore = gradedSubs.reduce((sum, sub) => sum + (sub.score || 0), 0)
-        return {
-            totalExams: filteredSubmissions.length,
-            gradedExams: gradedSubs.length,
-            avgScore: gradedSubs.length > 0 ? Math.round(totalScore / gradedSubs.length) : null
+        let subs = submissions
+        if (selectedSubject !== 'all') {
+            subs = subs.filter(sub => {
+                const exam = exams?.find(e => e.id === sub.examId)
+                const subject = exam?.subject || sub.subject
+                return subject === selectedSubject
+            })
         }
+        // 날짜순 정렬 (오래된 순 -> 최신 순) - 그래프용
+        return subs.sort((a, b) => (a.submittedAt?.seconds || 0) - (b.submittedAt?.seconds || 0))
+    }, [submissions, selectedSubject, exams])
+
+    // 초기 선택 상태 설정 (필터 변경 시 전체 선택)
+    useEffect(() => {
+        const ids = new Set(filteredSubmissions.map(s => s.id))
+        setSelectedSubmissionIds(ids)
     }, [filteredSubmissions])
+
+    // 선택된 제출물 (체크박스)
+    const selectedSubmissions = useMemo(() => {
+        return filteredSubmissions.filter(sub => selectedSubmissionIds.has(sub.id))
+    }, [filteredSubmissions, selectedSubmissionIds])
+
+    // 체크박스 핸들러
+    const toggleSelection = (id) => {
+        const newSet = new Set(selectedSubmissionIds)
+        if (newSet.has(id)) {
+            newSet.delete(id)
+        } else {
+            newSet.add(id)
+        }
+        setSelectedSubmissionIds(newSet)
+    }
+
+    const toggleSelectAll = () => {
+        if (selectedSubmissionIds.size === filteredSubmissions.length) {
+            setSelectedSubmissionIds(new Set())
+        } else {
+            setSelectedSubmissionIds(new Set(filteredSubmissions.map(s => s.id)))
+        }
+    }
+
+    // 선택된 데이터 통계
+    const selectedStats = useMemo(() => {
+        const gradedSubs = selectedSubmissions.filter(sub => sub.graded)
+        const totalScore = gradedSubs.reduce((sum, sub) => sum + (sub.score || 0), 0)
+
+        const scores = gradedSubs.map(s => s.score || 0)
+        const maxScore = scores.length > 0 ? Math.max(...scores) : 0
+        const minScore = scores.length > 0 ? Math.min(...scores) : 0
+
+        return {
+            totalExams: selectedSubmissions.length,
+            gradedExams: gradedSubs.length,
+            avgScore: gradedSubs.length > 0 ? Math.round(totalScore / gradedSubs.length) : null,
+            maxScore,
+            minScore
+        }
+    }, [selectedSubmissions])
+
+    // 그래프 데이터 변환
+    const graphData = useMemo(() => {
+        return selectedSubmissions.map(sub => {
+            const exam = exams?.find(e => e.id === sub.examId)
+            return {
+                name: exam?.title || sub.examTitle || '시험',
+                score: sub.graded ? (sub.score || 0) : null,
+                subject: exam?.subject || sub.subject || '',
+                date: sub.submittedAt?.toDate?.().toLocaleDateString()
+            }
+        })
+    }, [selectedSubmissions, exams])
 
     return (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden shadow-2xl">
+            <div className="bg-white rounded-2xl w-full max-w-4xl max-h-[90vh] overflow-hidden shadow-2xl flex flex-col">
                 {/* 헤더 */}
-                <div className="p-6 border-b bg-gray-50 flex justify-between items-center">
+                <div className="p-6 border-b bg-gray-50 flex justify-between items-center flex-shrink-0">
                     <div>
                         <h2 className="text-xl font-bold text-gray-800">
-                            {student.number}번 학생
+                            {student.number}번 학생 상세 분석
                             {student.memo && (
                                 <span className="ml-2 text-sm font-normal text-gray-500">
                                     ({student.memo})
@@ -408,86 +477,149 @@ function StudentDetailModal({ student, stats, exams, onClose }) {
                     </button>
                 </div>
 
-                {/* 과목 필터 */}
-                {subjects.length > 0 && (
-                    <div className="px-6 pt-4">
-                        <select
-                            value={selectedSubject}
-                            onChange={(e) => setSelectedSubject(e.target.value)}
-                            className="px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-sm"
-                        >
-                            <option value="all">전체 과목</option>
-                            {subjects.map(sub => (
-                                <option key={sub} value={sub}>{sub}</option>
-                            ))}
-                        </select>
-                    </div>
-                )}
-
-                {/* 통계 요약 */}
-                <div className="p-6 border-b">
-                    <div className="grid grid-cols-3 gap-4 text-center">
-                        <div className="bg-blue-50 p-4 rounded-xl">
-                            <p className="text-2xl font-bold text-blue-600">{filteredStats.totalExams}</p>
-                            <p className="text-sm text-gray-500">응시 횟수</p>
-                        </div>
-                        <div className="bg-green-50 p-4 rounded-xl">
-                            <p className="text-2xl font-bold text-green-600">{filteredStats.gradedExams}</p>
-                            <p className="text-sm text-gray-500">채점 완료</p>
-                        </div>
-                        <div className="bg-purple-50 p-4 rounded-xl">
-                            <p className="text-2xl font-bold text-purple-600">
-                                {filteredStats.avgScore !== null ? `${filteredStats.avgScore}점` : '-'}
-                            </p>
-                            <p className="text-sm text-gray-500">평균 점수</p>
-                        </div>
-                    </div>
-                </div>
-
-                {/* 시험 결과 목록 */}
-                <div className="p-6 overflow-y-auto max-h-[300px]">
-                    <h3 className="font-bold text-gray-700 mb-3">시험 결과</h3>
-                    {filteredSubmissions.length === 0 ? (
-                        <p className="text-gray-400 text-center py-8">응시한 시험이 없습니다</p>
-                    ) : (
-                        <div className="space-y-3">
-                            {filteredSubmissions.map((sub, idx) => (
-                                <div
-                                    key={idx}
-                                    className="flex items-center justify-between p-3 bg-gray-50 rounded-lg"
+                <div className="flex-1 overflow-y-auto p-6">
+                    {/* 상단 컨트롤러: 과목 필터 & 통계 */}
+                    <div className="flex flex-col md:flex-row gap-6 mb-6">
+                        <div className="w-full md:w-1/3 space-y-4">
+                            <div className="bg-gray-50 p-4 rounded-xl border">
+                                <label className="block text-sm font-bold text-gray-700 mb-2">과목 선택</label>
+                                <select
+                                    value={selectedSubject}
+                                    onChange={(e) => setSelectedSubject(e.target.value)}
+                                    className="w-full px-4 py-2 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
                                 >
-                                    <div>
-                                        <div className="flex items-center gap-2">
-                                            {sub.subject && (
-                                                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-xs font-medium">
-                                                    {sub.subject}
-                                                </span>
-                                            )}
-                                            <p className="font-semibold text-gray-800">
-                                                {exams?.find(e => e.id === sub.examId)?.title || sub.examTitle || '시험'}
-                                            </p>
-                                        </div>
-                                        <p className="text-xs text-gray-500 mt-1">
-                                            {sub.submittedAt?.toDate?.().toLocaleString('ko-KR') || ''}
-                                        </p>
-                                    </div>
-                                    <div className="text-right">
-                                        {sub.graded ? (
-                                            <p className={`font-bold ${sub.score >= 80 ? 'text-green-600' :
-                                                sub.score >= 60 ? 'text-yellow-600' : 'text-red-500'
-                                                }`}>
-                                                {sub.score}점
-                                            </p>
-                                        ) : (
-                                            <span className="text-xs bg-yellow-100 text-yellow-700 px-2 py-1 rounded-full">
-                                                채점중
-                                            </span>
-                                        )}
-                                    </div>
+                                    <option value="all">전체 과목 (혼합)</option>
+                                    {subjects.map(sub => (
+                                        <option key={sub} value={sub}>{sub}</option>
+                                    ))}
+                                </select>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div className="bg-blue-50 p-3 rounded-xl text-center">
+                                    <p className="text-xl font-bold text-blue-600">
+                                        {selectedStats.avgScore !== null ? `${selectedStats.avgScore}점` : '-'}
+                                    </p>
+                                    <p className="text-xs text-gray-500">평균 점수</p>
                                 </div>
-                            ))}
+                                <div className="bg-green-50 p-3 rounded-xl text-center">
+                                    <p className="text-xl font-bold text-green-600">{selectedStats.gradedExams}회</p>
+                                    <p className="text-xs text-gray-500">응시(채점됨)</p>
+                                </div>
+                                {selectedStats.gradedExams > 1 && (
+                                    <>
+                                        <div className="bg-purple-50 p-3 rounded-xl text-center">
+                                            <p className="text-lg font-bold text-purple-600">{selectedStats.maxScore}점</p>
+                                            <p className="text-xs text-gray-500">최고</p>
+                                        </div>
+                                        <div className="bg-orange-50 p-3 rounded-xl text-center">
+                                            <p className="text-lg font-bold text-orange-600">{selectedStats.minScore}점</p>
+                                            <p className="text-xs text-gray-500">최저</p>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
                         </div>
-                    )}
+
+                        {/* 그래프 영역 */}
+                        <div className="w-full md:w-2/3 bg-white border rounded-xl p-4 shadow-sm min-h-[250px] flex flex-col">
+                            <h3 className="font-bold text-gray-700 mb-4 flex items-center gap-2">
+                                📈 성적 변화 추이
+                                <span className="text-xs font-normal text-gray-500 bg-gray-100 px-2 py-1 rounded">
+                                    {selectedSubject === 'all' ? '전체 과목' : selectedSubject}
+                                </span>
+                            </h3>
+                            <div className="flex-1 w-full min-h-[200px]">
+                                {graphData.length > 0 ? (
+                                    <ResponsiveContainer width="100%" height="100%">
+                                        <LineChart data={graphData} margin={{ top: 5, right: 20, bottom: 5, left: 0 }}>
+                                            <CartesianGrid stroke="#eee" strokeDasharray="5 5" />
+                                            <XAxis dataKey="name" tick={{ fontSize: 12 }} interval="preserveStartEnd" />
+                                            <YAxis domain={[0, 100]} />
+                                            <RechartsTooltip
+                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                                            />
+                                            <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} name="점수" />
+                                        </LineChart>
+                                    </ResponsiveContainer>
+                                ) : (
+                                    <div className="h-full flex items-center justify-center text-gray-400">
+                                        데이터가 부족합니다
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* 시험 결과 목록 (체크박스 포함) */}
+                    <div>
+                        <div className="flex justify-between items-center mb-3">
+                            <h3 className="font-bold text-gray-700">📋 응시 목록 상세</h3>
+                            <label className="flex items-center gap-2 cursor-pointer text-sm text-gray-600 hover:text-blue-600">
+                                <input
+                                    type="checkbox"
+                                    checked={filteredSubmissions.length > 0 && selectedSubmissionIds.size === filteredSubmissions.length}
+                                    onChange={toggleSelectAll}
+                                    className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500"
+                                />
+                                전체 선택/해제
+                            </label>
+                        </div>
+
+                        <div className="bg-white border rounded-xl overflow-hidden">
+                            {filteredSubmissions.length === 0 ? (
+                                <p className="text-center py-8 text-gray-500">해당 과목의 응시 기록이 없습니다.</p>
+                            ) : (
+                                <div className="divide-y divide-gray-100">
+                                    {filteredSubmissions.map((sub) => {
+                                        const exam = exams?.find(e => e.id === sub.examId)
+                                        const title = exam?.title || sub.examTitle || '시험'
+                                        const subject = exam?.subject || sub.subject || '과목'
+                                        const isSelected = selectedSubmissionIds.has(sub.id)
+
+                                        return (
+                                            <div
+                                                key={sub.id}
+                                                className={`p-4 flex items-center justify-between transition-colors ${isSelected ? 'bg-blue-50/50' : 'bg-white hover:bg-gray-50'}`}
+                                            >
+                                                <div className="flex items-center gap-4">
+                                                    <input
+                                                        type="checkbox"
+                                                        checked={isSelected}
+                                                        onChange={() => toggleSelection(sub.id)}
+                                                        className="w-5 h-5 rounded text-blue-600 focus:ring-blue-500 cursor-pointer"
+                                                    />
+                                                    <div>
+                                                        <div className="flex items-center gap-2 mb-1">
+                                                            <span className="px-2 py-0.5 bg-gray-100 text-gray-600 rounded text-xs font-bold">
+                                                                {subject}
+                                                            </span>
+                                                            <span className="font-bold text-gray-800">{title}</span>
+                                                        </div>
+                                                        <span className="text-xs text-gray-400">
+                                                            {sub.submittedAt?.toDate?.().toLocaleString('ko-KR') || ''}
+                                                        </span>
+                                                    </div>
+                                                </div>
+
+                                                <div className="text-right">
+                                                    {sub.graded ? (
+                                                        <span className={`text-lg font-bold ${sub.score >= 80 ? 'text-green-600' : sub.score >= 60 ? 'text-orange-500' : 'text-red-500'}`}>
+                                                            {sub.score}점
+                                                        </span>
+                                                    ) : (
+                                                        <span className="px-2 py-1 bg-yellow-100 text-yellow-700 text-xs rounded-full">
+                                                            채점중
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </div>
+                                        )
+                                    })}
+                                </div>
+                            )}
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
