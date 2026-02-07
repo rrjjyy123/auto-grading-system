@@ -187,19 +187,52 @@ function ExamResult({ examData, submissionData, onBack }) {
                                     </div>
 
                                     {resultConfig.showAnswers && (
-                                        <div className="grid grid-cols-2 gap-4 text-sm mb-3 pl-10">
-                                            <div>
-                                                <span className="text-gray-500 mr-2">내 답:</span>
-                                                <span className={`font-semibold ${item.correct ? 'text-green-600' : 'text-red-500'}`}>
-                                                    {formatAnswer(item.studentAnswer)}
-                                                </span>
-                                            </div>
-                                            <div>
-                                                <span className="text-gray-500 mr-2">정답:</span>
-                                                <span className="font-semibold text-gray-800">
-                                                    {formatAnswer(item.correctAnswer)}
-                                                </span>
-                                            </div>
+                                        <div className="text-sm mb-3 pl-10">
+                                            {/* 서술형 문항 */}
+                                            {item.type === 'essay' ? (
+                                                <div>
+                                                    <span className="text-gray-500 mr-2">내 답:</span>
+                                                    <p className="mt-1 p-2 bg-gray-50 rounded text-gray-700 whitespace-pre-wrap">
+                                                        {item.studentAnswer || '(미작성)'}
+                                                    </p>
+                                                </div>
+                                            ) : item.hasSubQuestions && item.subResults ? (
+                                                /* 소문항 있는 문항 */
+                                                <div className="space-y-2">
+                                                    {item.subResults.map((sub, sIdx) => (
+                                                        <div key={sIdx} className="flex items-center gap-2">
+                                                            <span className="text-purple-600 font-bold">({sub.subNum})</span>
+                                                            <span className={sub.correct ? 'text-green-600' : 'text-red-500'}>
+                                                                {sub.studentAnswer || '(미작성)'}
+                                                            </span>
+                                                            {sub.correctAnswer && (
+                                                                <span className="text-gray-400 ml-2">
+                                                                    (정답: {formatAnswer(sub.correctAnswer)})
+                                                                </span>
+                                                            )}
+                                                            <span className={`ml-auto text-xs ${sub.correct ? 'text-green-600' : 'text-red-400'}`}>
+                                                                {sub.correct ? '✓' : '✗'}
+                                                            </span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            ) : (
+                                                /* 일반 문항 */
+                                                <div className="grid grid-cols-2 gap-4">
+                                                    <div>
+                                                        <span className="text-gray-500 mr-2">내 답:</span>
+                                                        <span className={`font-semibold ${item.correct ? 'text-green-600' : 'text-red-500'}`}>
+                                                            {formatAnswer(item.studentAnswer)}
+                                                        </span>
+                                                    </div>
+                                                    <div>
+                                                        <span className="text-gray-500 mr-2">정답:</span>
+                                                        <span className="font-semibold text-gray-800">
+                                                            {formatAnswer(item.correctAnswer)}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                            )}
                                         </div>
                                     )}
 
