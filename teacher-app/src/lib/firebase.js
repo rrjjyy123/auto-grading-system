@@ -255,7 +255,13 @@ export const createExam = async (classId, examData) => {
                 points: q.points,
                 isMultipleAnswer: q.isMultipleAnswer || false,
                 category: q.category || '',
-                explanation: q.explanation || ''
+                explanation: q.explanation || '',
+                hasSubQuestions: q.hasSubQuestions || false,
+                // 소문항 정보 (정답 제외)
+                subQuestions: (q.subQuestions || []).map(sub => ({
+                    subNum: sub.subNum
+                    // correctAnswers는 제외 (보안)
+                }))
             }));
 
             const examRef = await addDoc(collection(db, 'exams'), {
@@ -273,6 +279,7 @@ export const createExam = async (classId, examData) => {
                 // 기존 형식 호환
                 answers: legacyAnswers,
                 pointsPerQuestion: Math.round(examData.totalPoints / examData.questionCount),
+                allowRetake: examData.allowRetake || false,
                 createdAt: serverTimestamp(),
                 isActive: true
             });
@@ -337,7 +344,13 @@ export const updateExam = async (examId, classId, examData) => {
                 points: q.points,
                 isMultipleAnswer: q.isMultipleAnswer || false,
                 category: q.category || '',
-                explanation: q.explanation || ''
+                explanation: q.explanation || '',
+                hasSubQuestions: q.hasSubQuestions || false,
+                // 소문항 정보 (정답 제외)
+                subQuestions: (q.subQuestions || []).map(sub => ({
+                    subNum: sub.subNum
+                    // correctAnswers는 제외 (보안)
+                }))
             }));
 
             await updateDoc(doc(db, 'exams', examId), {
