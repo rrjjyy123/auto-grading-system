@@ -19,6 +19,9 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
     const [selectedStudent, setSelectedStudent] = useState(null)
     const [showReleaseModal, setShowReleaseModal] = useState(false)
 
+    // 재응시 허용 로컬 상태 (즉시 UI 업데이트용)
+    const [allowRetake, setAllowRetake] = useState(examData.allowRetake || false)
+
     // 미채점 제출물 수
     const ungradedCount = submissions.filter(s => !s.graded).length
 
@@ -274,17 +277,17 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
 
     // 재응시 허용 토글
     const handleToggleRetake = async () => {
-        const newValue = !examData.allowRetake
+        const newValue = !allowRetake
+        setAllowRetake(newValue) // 즉시 UI 업데이트
+
         const { error } = await updateExam(examData.id, classData.id, {
             ...examData,
             allowRetake: newValue
         })
 
         if (error) {
+            setAllowRetake(!newValue) // 실패 시 롤백
             alert('설정 변경 실패: ' + error)
-        } else {
-            // UI 업데이트를 위해 상위 데이터 리로드가 필요할 수 있음
-            if (onRefresh) onRefresh()
         }
     }
 
@@ -329,7 +332,7 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                                     {examData.subject}
                                 </span>
                                 <h1 className="text-xl font-bold text-gray-800">{examData.title}</h1>
-                                {examData.allowRetake && (
+                                {allowRetake && (
                                     <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded-md text-xs font-bold border border-purple-200">
                                         재응시 허용중
                                     </span>
@@ -343,12 +346,12 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
                             {/* 재응시 허용 토글 (ON/OFF 스타일) */}
                             <button
                                 onClick={handleToggleRetake}
-                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm border mr-2 ${examData.allowRetake
+                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm border mr-2 ${allowRetake
                                     ? 'bg-green-500 border-green-600 text-white'
                                     : 'bg-gray-200 border-gray-300 text-gray-500 hover:bg-gray-300'
                                     }`}
                             >
-                                {examData.allowRetake ? (
+                                {allowRetake ? (
                                     <>
                                         재응시 ON
                                         <div className="w-4 h-4 bg-white rounded-full shadow-sm" />

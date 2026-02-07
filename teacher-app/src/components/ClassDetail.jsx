@@ -10,7 +10,6 @@ import {
 } from '../lib/firebase'
 import ResultsView from './ResultsView'
 import ExamCreateModal from './ExamCreateModal'
-import ExamEditModal from './ExamEditModal'
 import MonitorPanel from './MonitorPanel'
 
 function ClassDetail({ classData, onBack }) {
@@ -208,9 +207,6 @@ function ClassDetail({ classData, onBack }) {
                                                 <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-sm font-semibold">
                                                     {exam.subject}
                                                 </span>
-                                                <span className="px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-sm">
-                                                    {getQuestionTypeLabel(exam)}
-                                                </span>
                                                 <h3 className="text-lg font-bold text-gray-800">{exam.title}</h3>
                                                 <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${exam.isActive
                                                     ? 'bg-green-200 text-green-800'
@@ -297,11 +293,11 @@ function ClassDetail({ classData, onBack }) {
 
             {/* 시험 수정 모달 */}
             {editingExam && (
-                <ExamEditModal
-                    exam={editingExam.exam}
-                    answerData={editingExam.answerData}
-                    onSave={handleUpdateExam}
+                <ExamCreateModal
+                    classData={classData}
+                    editData={editingExam}
                     onClose={() => setEditingExam(null)}
+                    onSubmit={handleUpdateExam}
                 />
             )}
 

@@ -80,20 +80,23 @@ function SubmissionDetailModal({
     onUpdate
 }) {
     const [manualScores, setManualScores] = useState({})
+    const [overrides, setOverrides] = useState({}) // 수동 재채점 오버라이드
     const [saving, setSaving] = useState(false)
 
-    // 기존 수동 채점 점수 로드
+    // 기존 수동 채점 점수 및 오버라이드 로드
     useEffect(() => {
         if (submission.manualScores) {
-            // eslint-disable-next-line
             setManualScores(submission.manualScores)
         }
-    }, [submission.manualScores])
+        if (submission.overrides) {
+            setOverrides(submission.overrides)
+        }
+    }, [submission.manualScores, submission.overrides])
 
     // 서술형 문항 목록
     const essayQuestions = itemResults?.filter(item => item.type === 'essay') || []
 
-    // 수동 점수 변경
+    // 수동 점수 변경 (서술형)
     const handleScoreChange = (questionNum, score) => {
         const maxPoints = itemResults.find(i => i.questionNum === questionNum)?.maxPoints || 0
         const validScore = Math.max(0, Math.min(maxPoints, parseInt(score) || 0))
@@ -104,12 +107,51 @@ function SubmissionDetailModal({
         }))
     }
 
-    // 최종 점수 계산
-    const calculateTotalScore = () => {
-        const autoScore = submission.autoScore || 0
-        const manualTotal = Object.values(manualScores).reduce((sum, s) => sum + s, 0)
-        return autoScore + manualTotal
+    // 수동 재채점 토글 (선생님이 정답/오답 수동 변경)
+    const handleOverrideToggle = (questionNum, forceCorrect) => {
+        setOverrides(prev => {
+            const current = prev[questionNum]
+            if (current === forceCorrect) {
+                // 같은 값이면 오버라이드 해제
+                const updated = { ...prev }
+                delete updated[questionNum]
+                return updated
+            }
+            return { ...prev, [questionNum]: forceCorrect }
+        })
     }
+
+    // 오버라이드 해제
+    const handleClearOverride = (questionNum) => {
+        setOverrides(prev => {
+            const updated = { ...prev }
+            delete updated[questionNum]
+            return updated
+        })
+    }
+
+    // 최종 점수 계산 (오버라이드 반영)
+    const calculateTotalScore = () => {
+        let total = 0
+
+        itemResults?.forEach(item => {
+            if (item.type === 'essay') {
+                // 서술형은 수동 점수
+                total += manualScores[item.questionNum] || 0
+            } else if (overrides[item.questionNum] !== undefined) {
+                // 오버라이드가 있으면 적용
+                total += overrides[item.questionNum] ? item.maxPoints : 0
+            } else {
+                // 자동 채점 결과
+                total += item.correct ? item.maxPoints : 0
+            }
+        })
+
+        return total
+    }
+
+    // 오버라이드 적용 여부 확인
+    const hasOverrides = Object.keys(overrides).length > 0
 
     // 저장
     const handleSave = async () => {
@@ -120,12 +162,25 @@ function SubmissionDetailModal({
             manualScores[q.questionNum] !== undefined
         )
 
+        // correctCount 재계산 (오버라이드 반영)
+        let newCorrectCount = 0
+        itemResults?.forEach(item => {
+            if (item.type !== 'essay') {
+                if (overrides[item.questionNum] !== undefined) {
+                    if (overrides[item.questionNum]) newCorrectCount++
+                } else if (item.correct) {
+                    newCorrectCount++
+                }
+            }
+        })
+
         const { error } = await updateSubmissionScore(submission.id, {
             score: totalScore,
-            correctCount: submission.correctCount,
+            correctCount: newCorrectCount,
             autoScore: submission.autoScore,
             manualScores: manualScores,
-            manualGradingComplete: allEssaysGraded
+            overrides: overrides,
+            manualGradingComplete: allEssaysGraded || Object.keys(manualScores).length > 0
         })
 
         setSaving(false)
@@ -242,8 +297,8 @@ function SubmissionDetailModal({
                                             </span>
                                         </div>
 
-                                        {/* 정답 & 학생답 */}
-                                        {item.type !== 'essay' && (
+                                        {/* 정답 & 학생답 - 소문항 여부에 따라 다르게 표시 */}
+                                        {item.type !== 'essay' && !item.hasSubQuestions && (
                                             <div className="grid grid-cols-2 gap-4 text-sm">
                                                 <div>
                                                     <span className="text-gray-500">정답:</span>
@@ -257,6 +312,31 @@ function SubmissionDetailModal({
                                                         }`}>
                                                         {formatAnswer(item.studentAnswer, item.type)}
                                                     </span>
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        {/* 소문항 결과 표시 */}
+                                        {item.hasSubQuestions && item.subResults && (
+                                            <div className="mt-2">
+                                                <div className="text-sm text-purple-600 mb-2">
+                                                    소문항 {item.subCorrectCount}/{item.subTotalCount} 정답
+                                                </div>
+                                                <div className="space-y-1 pl-2 border-l-2 border-purple-200">
+                                                    {item.subResults.map((sub, subIdx) => (
+                                                        <div key={subIdx} className="flex items-center gap-2 text-sm">
+                                                            <span className="text-gray-500">({sub.subNum})</span>
+                                                            <span className="text-blue-600">
+                                                                정답: {Array.isArray(sub.correctAnswer) ? sub.correctAnswer.join(', ') : sub.correctAnswer}
+                                                            </span>
+                                                            <span className={sub.correct ? 'text-green-600' : 'text-red-600'}>
+                                                                학생: {sub.studentAnswer || '(미입력)'}
+                                                            </span>
+                                                            <span className={`text-xs ${sub.correct ? 'text-green-500' : 'text-red-500'}`}>
+                                                                {sub.correct ? '✓' : '✗'}
+                                                            </span>
+                                                        </div>
+                                                    ))}
                                                 </div>
                                             </div>
                                         )}
@@ -291,9 +371,53 @@ function SubmissionDetailModal({
                                                 </div>
                                             </div>
                                         ) : (
-                                            <div className={`text-2xl font-bold ${item.correct ? 'text-green-500' : 'text-red-500'
-                                                }`}>
-                                                {item.correct ? '✓' : '✗'}
+                                            <div className="flex flex-col items-end gap-2">
+                                                {/* 현재 채점 결과 */}
+                                                {overrides[item.questionNum] !== undefined ? (
+                                                    <>
+                                                        <div className={`text-2xl font-bold ${overrides[item.questionNum] ? 'text-green-500' : 'text-red-500'}`}>
+                                                            {overrides[item.questionNum] ? '✓' : '✗'}
+                                                        </div>
+                                                        <span className="text-xs text-purple-600">수동 변경됨</span>
+                                                    </>
+                                                ) : (
+                                                    <div className={`text-2xl font-bold ${item.correct ? 'text-green-500' : 'text-red-500'}`}>
+                                                        {item.correct ? '✓' : '✗'}
+                                                    </div>
+                                                )}
+
+                                                {/* 수동 재채점 버튼 */}
+                                                <div className="flex gap-1 mt-1">
+                                                    <button
+                                                        onClick={() => handleOverrideToggle(item.questionNum, true)}
+                                                        title="정답 처리"
+                                                        className={`px-2 py-1 text-xs rounded ${overrides[item.questionNum] === true
+                                                            ? 'bg-green-500 text-white'
+                                                            : 'bg-gray-100 text-gray-600 hover:bg-green-100'
+                                                            }`}
+                                                    >
+                                                        ✓
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleOverrideToggle(item.questionNum, false)}
+                                                        title="오답 처리"
+                                                        className={`px-2 py-1 text-xs rounded ${overrides[item.questionNum] === false
+                                                            ? 'bg-red-500 text-white'
+                                                            : 'bg-gray-100 text-gray-600 hover:bg-red-100'
+                                                            }`}
+                                                    >
+                                                        ✗
+                                                    </button>
+                                                    {overrides[item.questionNum] !== undefined && (
+                                                        <button
+                                                            onClick={() => handleClearOverride(item.questionNum)}
+                                                            title="자동 채점으로 복원"
+                                                            className="px-2 py-1 text-xs rounded bg-gray-200 text-gray-600 hover:bg-gray-300"
+                                                        >
+                                                            ↺
+                                                        </button>
+                                                    )}
+                                                </div>
                                             </div>
                                         )}
                                     </div>
@@ -315,7 +439,7 @@ function SubmissionDetailModal({
                         >
                             취소
                         </button>
-                        {essayQuestions.length > 0 && (
+                        {(essayQuestions.length > 0 || hasOverrides) && (
                             <button
                                 onClick={handleSave}
                                 disabled={saving}

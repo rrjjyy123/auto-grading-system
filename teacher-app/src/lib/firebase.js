@@ -591,14 +591,67 @@ export const gradeSubmission = (submission, answerData) => {
                     studentAnswer: studentAnswer?.value || '',
                     correct: null,
                     points: 0,
-                    maxPoints: question.points
+                    maxPoints: question.points,
+                    category: question.category || ''
                 });
                 hasEssay = true;
                 essayCount++;
                 return;
             }
 
-            // 자동채점 가능한 문항
+            // 소문항이 있는 경우
+            if (question.hasSubQuestions && question.subQuestions?.length > 0) {
+                const studentSubAnswers = studentAnswer?.subAnswers || [];
+                let subCorrectCount = 0;
+                const subResults = [];
+
+                question.subQuestions.forEach((sub, subIdx) => {
+                    const studentSubAnswer = studentSubAnswers[subIdx] || '';
+                    let isSubCorrect = false;
+
+                    if (sub.correctAnswers && sub.correctAnswers.length > 0) {
+                        // 소문항 채점 (OR 로직: 정답 중 하나와 일치하면 정답)
+                        const normalized = (studentSubAnswer || '').toLowerCase().trim();
+                        isSubCorrect = sub.correctAnswers.some(ans =>
+                            ans.toLowerCase().trim() === normalized
+                        );
+                    }
+
+                    if (isSubCorrect) subCorrectCount++;
+
+                    subResults.push({
+                        subNum: sub.subNum,
+                        correctAnswer: sub.correctAnswers,
+                        studentAnswer: studentSubAnswer,
+                        correct: isSubCorrect
+                    });
+                });
+
+                // 부분 점수 계산: (맞은 소문항 / 전체 소문항) * 배점
+                const partialPoints = Math.round(
+                    (subCorrectCount / question.subQuestions.length) * question.points
+                );
+                const isAllCorrect = subCorrectCount === question.subQuestions.length;
+
+                if (isAllCorrect) correctCount++;
+                autoScore += partialPoints;
+
+                itemResults.push({
+                    questionNum: idx + 1,
+                    type: question.type,
+                    hasSubQuestions: true,
+                    subResults: subResults,
+                    subCorrectCount: subCorrectCount,
+                    subTotalCount: question.subQuestions.length,
+                    correct: isAllCorrect,
+                    points: partialPoints,
+                    maxPoints: question.points,
+                    category: question.category || ''
+                });
+                return;
+            }
+
+            // 일반 자동채점 문항
             const isCorrect = gradeQuestion(question, studentAnswer?.value ?? studentAnswer);
             const earnedPoints = isCorrect ? question.points : 0;
 
@@ -608,7 +661,7 @@ export const gradeSubmission = (submission, answerData) => {
             itemResults.push({
                 questionNum: idx + 1,
                 type: question.type,
-                correctAnswer: question.correctAnswers, // Keep for teacher app display
+                correctAnswer: question.correctAnswers,
                 studentAnswer: studentAnswer?.value ?? studentAnswer,
                 correct: isCorrect,
                 points: earnedPoints,
@@ -659,7 +712,7 @@ export const gradeSubmission = (submission, answerData) => {
  * 문항 채점 로직
  */
 const gradeQuestion = (question, studentAnswer) => {
-    const { type, correctAnswers, answerLogic } = question;
+    const { type, correctAnswers, answerLogic, ignoreSpace } = question; // ignoreSpace 추가
 
     if (!correctAnswers || correctAnswers.length === 0) return false;
 
@@ -680,7 +733,7 @@ const gradeQuestion = (question, studentAnswer) => {
             return correct === student;
         }
         case 'short':
-            return gradeShortAnswer(correctAnswers, studentAnswer, answerLogic);
+            return gradeShortAnswer(correctAnswers, studentAnswer, answerLogic, ignoreSpace);
         default:
             return false;
     }
@@ -706,15 +759,34 @@ const gradeChoice = (correctAnswers, studentAnswer, logic) => {
 /**
  * 단답형 채점
  */
-const gradeShortAnswer = (correctAnswers, studentAnswer, logic) => {
+const gradeShortAnswer = (correctAnswers, studentAnswer, logic, ignoreSpace = true) => {
     if (!studentAnswer || typeof studentAnswer !== 'string') return false;
 
-    const normalized = studentAnswer.toLowerCase().trim();
+    // 원문자 → 자모 정규화 함수
+    const circleJamoMap = {
+        '㉠': 'ㄱ', '㉡': 'ㄴ', '㉢': 'ㄷ', '㉣': 'ㄹ', '㉤': 'ㅁ',
+        '㉥': 'ㅂ', '㉦': 'ㅅ', '㉧': 'ㅇ', '㉨': 'ㅈ', '㉩': 'ㅊ',
+        '㉪': 'ㅋ', '㉫': 'ㅌ', '㉬': 'ㅍ', '㉭': 'ㅎ'
+    };
+    const normalize = (str) => {
+        let result = str.toLowerCase().trim();
+        for (const [circle, jamo] of Object.entries(circleJamoMap)) {
+            result = result.replace(new RegExp(circle, 'g'), jamo);
+        }
+        // 띄어쓰기 무시 옵션이 켜져있으면 모든 공백 제거
+        if (ignoreSpace) {
+            result = result.replace(/\s+/g, '');
+        }
+        return result;
+    };
+
+    const normalizedStudent = normalize(studentAnswer);
 
     if (logic === 'or') {
-        return correctAnswers.some(ans => ans.toLowerCase().trim() === normalized);
+        return correctAnswers.some(ans => normalize(ans) === normalizedStudent);
     } else {
-        return correctAnswers.every(ans => normalized.includes(ans.toLowerCase().trim()));
+        // AND: 모든 정답이 학생 답에 포함되어야 함 (단답형 AND는 잘 안 쓰이지만)
+        return correctAnswers.every(ans => normalizedStudent.includes(normalize(ans)));
     }
 };
 
@@ -871,22 +943,6 @@ export const updateResultConfig = async (examId, config, statistics = null) => {
                             correctAnswer: questions[idx]?.correctAnswers || null
                         }));
                         batch.update(subDoc.ref, { itemResults: enrichedResults });
-                    } else if (subData.answers && Array.isArray(subData.answers)) {
-                        // itemResults가 없으면 answers에서 새로 생성
-                        const newItemResults = subData.answers.map((answer, idx) => {
-                            const question = questions[idx] || {};
-                            const studentAnswer = answer?.value ?? answer;
-                            return {
-                                questionNum: idx + 1,
-                                type: question.type || 'choice4',
-                                studentAnswer: studentAnswer,
-                                correctAnswer: question.correctAnswers || null,
-                                correct: null,  // 채점 정보 없음
-                                points: 0,
-                                maxPoints: question.points || 4
-                            };
-                        });
-                        batch.update(subDoc.ref, { itemResults: newItemResults });
                     }
                 });
                 await batch.commit();
