@@ -176,12 +176,25 @@ function ExamResult({ examData, submissionData, onBack }) {
                                             )}
                                         </div>
                                         {resultConfig.showAnswers && (
-                                            <div className={`px-3 py-1 rounded-full text-sm font-bold ${item.correct === true ? 'bg-green-100 text-green-700' :
-                                                item.correct === false ? 'bg-red-100 text-red-700' :
-                                                    'bg-yellow-100 text-yellow-700'
+                                            <div className={`px-3 py-1 rounded-full text-sm font-bold ${item.type === 'essay' && item.score !== undefined ? (
+                                                    item.score === (item.maxPoints || 0) ? 'bg-green-100 text-green-700' :
+                                                        item.score === 0 ? 'bg-red-100 text-red-700' :
+                                                            'bg-orange-100 text-orange-700'
+                                                ) : (
+                                                    item.correct === true ? 'bg-green-100 text-green-700' :
+                                                        item.correct === false ? 'bg-red-100 text-red-700' :
+                                                            'bg-yellow-100 text-yellow-700'
+                                                )
                                                 }`}>
-                                                {item.correct === true ? '정답' :
-                                                    item.correct === false ? '오답' : '부분점수/채점중'}
+                                                {
+                                                    item.type === 'essay' && item.score !== undefined ? (
+                                                        item.score === (item.maxPoints || 0) ? '정답' :
+                                                            item.score === 0 ? '오답' : '부분점수'
+                                                    ) : (
+                                                        item.correct === true ? '정답' :
+                                                            item.correct === false ? '오답' : '채점중'
+                                                    )
+                                                }
                                             </div>
                                         )}
                                     </div>
