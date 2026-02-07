@@ -11,6 +11,7 @@ import {
 import ResultsView from './ResultsView'
 import ExamCreateModal from './ExamCreateModal'
 import MonitorPanel from './MonitorPanel'
+import StudentManagement from './StudentManagement'
 
 function ClassDetail({ classData, onBack }) {
     const [exams, setExams] = useState([])
@@ -20,6 +21,9 @@ function ClassDetail({ classData, onBack }) {
     const [selectedExam, setSelectedExam] = useState(null)
     const [editingExam, setEditingExam] = useState(null)
     const [monitorExam, setMonitorExam] = useState(null)
+
+    // 탭 상태: 'exams' | 'students'
+    const [activeTab, setActiveTab] = useState('exams')
 
     useEffect(() => {
         const unsubExams = subscribeToExams(classData.id, (examList) => {
@@ -166,120 +170,155 @@ function ClassDetail({ classData, onBack }) {
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                             </svg>
                         </button>
-                        <div>
+                        <div className="flex-1">
                             <h1 className="text-2xl font-bold text-gray-800">{classData.name}</h1>
-                            <p className="text-gray-500">시험 관리 • 학생 {classData.studentCount}명</p>
+                            <p className="text-gray-500">학생 {classData.studentCount}명</p>
                         </div>
                     </div>
-                    <button
-                        onClick={() => setShowCreateExam(true)}
-                        className="px-6 py-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 transition-colors"
-                    >
-                        + 새 시험 만들기
-                    </button>
+
+                    {/* 탭 버튼 */}
+                    <div className="flex gap-2 border-b border-gray-200 -mx-6 px-6">
+                        <button
+                            onClick={() => setActiveTab('exams')}
+                            className={`px-4 py-3 font-semibold border-b-2 transition-colors ${activeTab === 'exams'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            📝 시험 관리
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('students')}
+                            className={`px-4 py-3 font-semibold border-b-2 transition-colors ${activeTab === 'students'
+                                    ? 'border-blue-500 text-blue-600'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                }`}
+                        >
+                            👥 학생 관리
+                        </button>
+                    </div>
                 </div>
 
-                {/* 시험 목록 */}
-                <div className="bg-white rounded-2xl shadow-lg p-6">
-                    <h2 className="text-xl font-bold text-gray-800 mb-4">시험 목록</h2>
+                {/* 탭 콘텐츠 */}
+                {activeTab === 'exams' && (
+                    <>
+                        {/* 시험 생성 버튼 */}
+                        <div className="mb-6">
+                            <button
+                                onClick={() => setShowCreateExam(true)}
+                                className="px-6 py-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 transition-colors"
+                            >
+                                + 새 시험 만들기
+                            </button>
+                        </div>
 
-                    {loading ? (
-                        <div className="text-center py-12">
-                            <div className="animate-spin w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
-                        </div>
-                    ) : exams.length === 0 ? (
-                        <div className="text-center py-12">
-                            <p className="text-gray-500">아직 생성된 시험이 없습니다</p>
-                        </div>
-                    ) : (
-                        <div className="grid gap-4">
-                            {exams.map((exam) => (
-                                <div
-                                    key={exam.id}
-                                    className={`border-2 rounded-xl p-4 transition-all ${exam.isActive
-                                        ? 'border-green-200 bg-green-50'
-                                        : 'border-gray-200 bg-gray-50'
-                                        }`}
-                                >
-                                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                                <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-sm font-semibold">
-                                                    {exam.subject}
-                                                </span>
-                                                <h3 className="text-lg font-bold text-gray-800">{exam.title}</h3>
-                                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${exam.isActive
-                                                    ? 'bg-green-200 text-green-800'
-                                                    : 'bg-gray-300 text-gray-600'
-                                                    }`}>
-                                                    {exam.isActive ? '진행중' : '마감'}
-                                                </span>
-                                            </div>
-                                            <p className="text-gray-500 text-sm">
-                                                {exam.questionCount}문항
-                                                {exam.totalPoints ? (
-                                                    <> • {exam.totalPoints}점 만점</>
-                                                ) : (
-                                                    <> × {exam.pointsPerQuestion}점 = {exam.questionCount * exam.pointsPerQuestion}점 만점</>
-                                                )}
-                                                {exam.manualGradablePoints > 0 && (
-                                                    <span className="text-yellow-600"> (서술형 {exam.manualGradablePoints}점)</span>
-                                                )}
-                                                {exam.timeLimit > 0 && ` • 제한시간 ${exam.timeLimit}분`}
-                                                {' • '}응시 {getExamSubmissionCount(exam.id)}/{classData.studentCount}명
-                                            </p>
-                                        </div>
-                                        <div className="flex flex-wrap gap-2">
-                                            <button
-                                                onClick={() => handleSelectExam(exam)}
-                                                className="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-colors text-sm"
-                                            >
-                                                결과 보기
-                                            </button>
-                                            <button
-                                                onClick={() => setMonitorExam(exam)}
-                                                className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg font-semibold hover:bg-indigo-200 transition-colors text-sm flex items-center gap-1"
-                                            >
-                                                📡 접속 확인
-                                            </button>
-                                            <button
-                                                onClick={() => toggleExamActive(exam.id, !exam.isActive)}
-                                                className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm border ${exam.isActive
-                                                    ? 'bg-green-500 border-green-600 text-white'
-                                                    : 'bg-gray-200 border-gray-300 text-gray-500 hover:bg-gray-300'
-                                                    }`}
-                                            >
-                                                {exam.isActive ? (
-                                                    <>
-                                                        배포중
-                                                        <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
-                                                    </>
-                                                ) : (
-                                                    <>
-                                                        <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
-                                                        배포마감
-                                                    </>
-                                                )}
-                                            </button>
-                                            <button
-                                                onClick={() => handleEditExam(exam)}
-                                                className="px-4 py-2 bg-purple-100 text-purple-600 rounded-lg font-semibold hover:bg-purple-200 transition-colors text-sm"
-                                            >
-                                                ✏️ 수정
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteExam(exam.id, exam.title)}
-                                                className="px-4 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200 transition-colors text-sm"
-                                            >
-                                                삭제
-                                            </button>
-                                        </div>
-                                    </div>
+                        {/* 시험 목록 */}
+                        <div className="bg-white rounded-2xl shadow-lg p-6">
+                            <h2 className="text-xl font-bold text-gray-800 mb-4">시험 목록</h2>
+
+                            {loading ? (
+                                <div className="text-center py-12">
+                                    <div className="animate-spin w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full mx-auto"></div>
                                 </div>
-                            ))}
+                            ) : exams.length === 0 ? (
+                                <div className="text-center py-12">
+                                    <p className="text-gray-500">아직 생성된 시험이 없습니다</p>
+                                </div>
+                            ) : (
+                                <div className="grid gap-4">
+                                    {exams.map((exam) => (
+                                        <div
+                                            key={exam.id}
+                                            className={`border-2 rounded-xl p-4 transition-all ${exam.isActive
+                                                ? 'border-green-200 bg-green-50'
+                                                : 'border-gray-200 bg-gray-50'
+                                                }`}
+                                        >
+                                            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+                                                <div className="flex-1">
+                                                    <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 rounded text-sm font-semibold">
+                                                            {exam.subject}
+                                                        </span>
+                                                        <h3 className="text-lg font-bold text-gray-800">{exam.title}</h3>
+                                                        <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${exam.isActive
+                                                            ? 'bg-green-200 text-green-800'
+                                                            : 'bg-gray-300 text-gray-600'
+                                                            }`}>
+                                                            {exam.isActive ? '진행중' : '마감'}
+                                                        </span>
+                                                    </div>
+                                                    <p className="text-gray-500 text-sm">
+                                                        {exam.questionCount}문항
+                                                        {exam.totalPoints ? (
+                                                            <> • {exam.totalPoints}점 만점</>
+                                                        ) : (
+                                                            <> × {exam.pointsPerQuestion}점 = {exam.questionCount * exam.pointsPerQuestion}점 만점</>
+                                                        )}
+                                                        {exam.manualGradablePoints > 0 && (
+                                                            <span className="text-yellow-600"> (서술형 {exam.manualGradablePoints}점)</span>
+                                                        )}
+                                                        {exam.timeLimit > 0 && ` • 제한시간 ${exam.timeLimit}분`}
+                                                        {' • '}응시 {getExamSubmissionCount(exam.id)}/{classData.studentCount}명
+                                                    </p>
+                                                </div>
+                                                <div className="flex flex-wrap gap-2">
+                                                    <button
+                                                        onClick={() => handleSelectExam(exam)}
+                                                        className="px-4 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-colors text-sm"
+                                                    >
+                                                        결과 보기
+                                                    </button>
+                                                    <button
+                                                        onClick={() => setMonitorExam(exam)}
+                                                        className="px-4 py-2 bg-indigo-100 text-indigo-700 rounded-lg font-semibold hover:bg-indigo-200 transition-colors text-sm flex items-center gap-1"
+                                                    >
+                                                        📡 접속 확인
+                                                    </button>
+                                                    <button
+                                                        onClick={() => toggleExamActive(exam.id, !exam.isActive)}
+                                                        className={`flex items-center gap-2 px-3 py-1.5 rounded-full font-bold text-sm transition-all shadow-sm border ${exam.isActive
+                                                            ? 'bg-green-500 border-green-600 text-white'
+                                                            : 'bg-gray-200 border-gray-300 text-gray-500 hover:bg-gray-300'
+                                                            }`}
+                                                    >
+                                                        {exam.isActive ? (
+                                                            <>
+                                                                배포중
+                                                                <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <div className="w-4 h-4 bg-white rounded-full shadow-sm" />
+                                                                배포마감
+                                                            </>
+                                                        )}
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleEditExam(exam)}
+                                                        className="px-4 py-2 bg-purple-100 text-purple-600 rounded-lg font-semibold hover:bg-purple-200 transition-colors text-sm"
+                                                    >
+                                                        ✏️ 수정
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleDeleteExam(exam.id, exam.title)}
+                                                        className="px-4 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200 transition-colors text-sm"
+                                                    >
+                                                        삭제
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
                         </div>
-                    )}
-                </div>
+                    </>
+                )}
+
+                {activeTab === 'students' && (
+                    <StudentManagement classData={classData} />
+                )}
             </div>
 
             {/* 시험 생성 모달 */}

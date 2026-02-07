@@ -19,6 +19,7 @@ import {
     query,
     where,
     orderBy,
+    limit,
     onSnapshot,
     serverTimestamp,
     writeBatch
@@ -221,14 +222,121 @@ export const getStudentCodes = async (classId) => {
             orderBy('studentNumber', 'asc')
         );
         const snapshot = await getDocs(q);
-        return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data(),
+            number: doc.data().studentNumber,  // number 필드 추가 (호환성)
+            code: doc.data().code
+        }));
     } catch (error) {
         console.error('Error fetching student codes:', error);
         return [];
     }
 };
 
+/**
+ * 학생 메모 업데이트
+ */
+export const updateStudentMemo = async (classId, studentNumber, memo) => {
+    try {
+        const q = query(
+            collection(db, 'studentCodes'),
+            where('classId', '==', classId),
+            where('studentNumber', '==', studentNumber)
+        );
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+            return { error: '학생을 찾을 수 없습니다' };
+        }
+        const studentDoc = snapshot.docs[0];
+        await updateDoc(studentDoc.ref, { memo });
+        return { data: { success: true } };
+    } catch (error) {
+        console.error('Error updating student memo:', error);
+        return { error: error.message };
+    }
+};
+
+/**
+ * 학생 추가 (새 번호 자동 할당)
+ */
+export const addStudent = async (classId) => {
+    try {
+        // 기존 학생 목록 조회 (인덱스 불필요)
+        const q = query(
+            collection(db, 'studentCodes'),
+            where('classId', '==', classId)
+        );
+        const snapshot = await getDocs(q);
+
+        // JavaScript에서 최대 번호 계산
+        let maxNumber = 0;
+        snapshot.docs.forEach(doc => {
+            const num = doc.data().studentNumber || 0;
+            if (num > maxNumber) maxNumber = num;
+        });
+        const newNumber = maxNumber + 1;
+
+        // 새 학생 코드 생성
+        const code = generateNumericCode();
+        await addDoc(collection(db, 'studentCodes'), {
+            code,
+            classId,
+            studentNumber: newNumber,
+            createdAt: serverTimestamp()
+        });
+
+        // 학급의 studentCount 업데이트
+        const classRef = doc(db, 'classes', classId);
+        const classDoc = await getDoc(classRef);
+        if (classDoc.exists()) {
+            await updateDoc(classRef, {
+                studentCount: (classDoc.data().studentCount || 0) + 1
+            });
+        }
+
+        return { data: { number: newNumber, code } };
+    } catch (error) {
+        console.error('Error adding student:', error);
+        return { error: error.message };
+    }
+};
+
+/**
+ * 학생 삭제
+ */
+export const deleteStudent = async (classId, studentNumber) => {
+    try {
+        const q = query(
+            collection(db, 'studentCodes'),
+            where('classId', '==', classId),
+            where('studentNumber', '==', studentNumber)
+        );
+        const snapshot = await getDocs(q);
+        if (snapshot.empty) {
+            return { error: '학생을 찾을 수 없습니다' };
+        }
+
+        await deleteDoc(snapshot.docs[0].ref);
+
+        // 학급의 studentCount 업데이트
+        const classRef = doc(db, 'classes', classId);
+        const classDoc = await getDoc(classRef);
+        if (classDoc.exists() && classDoc.data().studentCount > 0) {
+            await updateDoc(classRef, {
+                studentCount: classDoc.data().studentCount - 1
+            });
+        }
+
+        return { data: { success: true } };
+    } catch (error) {
+        console.error('Error deleting student:', error);
+        return { error: error.message };
+    }
+};
+
 // ==================== 시험 관리 ====================
+
 
 /**
  * 시험 생성
@@ -257,9 +365,10 @@ export const createExam = async (classId, examData) => {
                 category: q.category || '',
                 explanation: q.explanation || '',
                 hasSubQuestions: q.hasSubQuestions || false,
-                // 소문항 정보 (정답 제외)
+                // 소문항 정보 (정답 제외, 배점 포함)
                 subQuestions: (q.subQuestions || []).map(sub => ({
-                    subNum: sub.subNum
+                    subNum: sub.subNum,
+                    subPoints: sub.subPoints || 0
                     // correctAnswers는 제외 (보안)
                 }))
             }));
@@ -346,9 +455,10 @@ export const updateExam = async (examId, classId, examData) => {
                 category: q.category || '',
                 explanation: q.explanation || '',
                 hasSubQuestions: q.hasSubQuestions || false,
-                // 소문항 정보 (정답 제외)
+                // 소문항 정보 (정답 제외, 배점 포함)
                 subQuestions: (q.subQuestions || []).map(sub => ({
-                    subNum: sub.subNum
+                    subNum: sub.subNum,
+                    subPoints: sub.subPoints || 0
                     // correctAnswers는 제외 (보안)
                 }))
             }));
@@ -636,14 +746,14 @@ export const gradeSubmission = (submission, answerData) => {
                         subNum: sub.subNum,
                         correctAnswer: sub.correctAnswers,
                         studentAnswer: studentSubAnswer,
-                        correct: isSubCorrect
+                        correct: isSubCorrect,
+                        subPoints: sub.subPoints || 0,
+                        earnedPoints: isSubCorrect ? (sub.subPoints || 0) : 0
                     });
                 });
 
-                // 부분 점수 계산: (맞은 소문항 / 전체 소문항) * 배점
-                const partialPoints = Math.round(
-                    (subCorrectCount / question.subQuestions.length) * question.points
-                );
+                // 부분 점수 계산: 맞은 소문항의 subPoints 합계
+                const partialPoints = subResults.reduce((sum, r) => sum + r.earnedPoints, 0);
                 const isAllCorrect = subCorrectCount === question.subQuestions.length;
 
                 if (isAllCorrect) correctCount++;

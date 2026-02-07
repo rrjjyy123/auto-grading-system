@@ -213,10 +213,12 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
         setQuestions(prev => prev.map((q, i) => {
             if (i !== idx) return q
             const newHasSub = !q.hasSubQuestions
+            // 소문항 활성화 시 기본 배점은 문항 배점의 절반
+            const defaultSubPoints = Math.round(q.points / 2)
             return {
                 ...q,
                 hasSubQuestions: newHasSub,
-                subQuestions: newHasSub ? [{ subNum: 1, correctAnswers: [] }] : [],
+                subQuestions: newHasSub ? [{ subNum: 1, correctAnswers: [], subPoints: defaultSubPoints }] : [],
                 type: newHasSub ? 'short' : q.type
             }
         }))
@@ -226,9 +228,11 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
     const handleAddSubQuestion = (idx) => {
         setQuestions(prev => prev.map((q, i) => {
             if (i !== idx) return q
+            // 새 소문항 기본 배점: 기존 소문항 평균 또는 문항 배점 / (소문항 수+1)
+            const avgPoints = Math.round(q.points / (q.subQuestions.length + 1))
             return {
                 ...q,
-                subQuestions: [...q.subQuestions, { subNum: q.subQuestions.length + 1, correctAnswers: [] }]
+                subQuestions: [...q.subQuestions, { subNum: q.subQuestions.length + 1, correctAnswers: [], subPoints: avgPoints }]
             }
         }))
     }
@@ -243,12 +247,26 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
         }))
     }
 
-    // 소문항 정답 변경
+    // 소문항 정답 변경 (콤마로 복수정답 지원)
     const handleSubAnswerChange = (qIdx, subIdx, value) => {
         setQuestions(prev => prev.map((q, i) => {
             if (i !== qIdx) return q
+            const newSubs = q.subQuestions.map((s, si) => {
+                if (si !== subIdx) return s
+                // 콤마로 복수정답 파싱
+                const answers = value.split(/[,،]+/).map(a => a.trim()).filter(Boolean)
+                return { ...s, correctAnswers: answers.length > 0 ? answers : [], displayAnswer: value }
+            })
+            return { ...q, subQuestions: newSubs }
+        }))
+    }
+
+    // 소문항 부분점수 변경
+    const handleSubPointsChange = (qIdx, subIdx, value) => {
+        setQuestions(prev => prev.map((q, i) => {
+            if (i !== qIdx) return q
             const newSubs = q.subQuestions.map((s, si) =>
-                si === subIdx ? { ...s, correctAnswers: [value] } : s
+                si === subIdx ? { ...s, subPoints: parseInt(value) || 0 } : s
             )
             return { ...q, subQuestions: newSubs }
         }))
@@ -861,29 +879,49 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
                                                 {selectedQuestion.hasSubQuestions && (
                                                     <div className="space-y-2 mt-2">
                                                         {selectedQuestion.subQuestions.map((sub, subIdx) => (
-                                                            <div key={subIdx} className="flex items-center gap-1">
-                                                                <span className="text-purple-600 font-bold text-sm w-6">({sub.subNum})</span>
-                                                                <input
-                                                                    type="text"
-                                                                    value={sub.correctAnswers?.[0] || ''}
-                                                                    onChange={(e) => handleSubAnswerChange(selectedRow, subIdx, e.target.value)}
-                                                                    placeholder="정답"
-                                                                    className="flex-1 px-2 py-1 border rounded text-sm"
-                                                                />
-                                                                <button
-                                                                    onClick={() => handleRemoveSubQuestion(selectedRow, subIdx)}
-                                                                    className="text-red-400 hover:text-red-600"
-                                                                >
-                                                                    ×
-                                                                </button>
+                                                            <div key={subIdx} className="bg-white p-2 rounded border border-purple-200">
+                                                                <div className="flex items-center gap-2 mb-1">
+                                                                    <span className="text-purple-600 font-bold text-sm">({sub.subNum})</span>
+                                                                    <input
+                                                                        type="text"
+                                                                        value={sub.displayAnswer || sub.correctAnswers?.join(', ') || ''}
+                                                                        onChange={(e) => handleSubAnswerChange(selectedRow, subIdx, e.target.value)}
+                                                                        placeholder="정답 (콤마로 복수정답)"
+                                                                        className="flex-1 px-2 py-1 border rounded text-sm min-w-0"
+                                                                    />
+                                                                </div>
+                                                                <div className="flex items-center justify-between pl-6">
+                                                                    <div className="flex items-center gap-1">
+                                                                        <span className="text-xs text-gray-500">배점:</span>
+                                                                        <input
+                                                                            type="number"
+                                                                            value={sub.subPoints || 0}
+                                                                            onChange={(e) => handleSubPointsChange(selectedRow, subIdx, e.target.value)}
+                                                                            className="w-12 px-1 py-0.5 border rounded text-sm text-center"
+                                                                            min="0"
+                                                                        />
+                                                                        <span className="text-xs text-gray-500">점</span>
+                                                                    </div>
+                                                                    <button
+                                                                        onClick={() => handleRemoveSubQuestion(selectedRow, subIdx)}
+                                                                        className="text-xs text-red-400 hover:text-red-600"
+                                                                    >
+                                                                        삭제
+                                                                    </button>
+                                                                </div>
                                                             </div>
                                                         ))}
-                                                        <button
-                                                            onClick={() => handleAddSubQuestion(selectedRow)}
-                                                            className="text-xs text-purple-600 hover:text-purple-800"
-                                                        >
-                                                            + 소문항 추가
-                                                        </button>
+                                                        <div className="flex items-center justify-between">
+                                                            <button
+                                                                onClick={() => handleAddSubQuestion(selectedRow)}
+                                                                className="text-xs text-purple-600 hover:text-purple-800"
+                                                            >
+                                                                + 소문항 추가
+                                                            </button>
+                                                            <span className="text-xs text-purple-500">
+                                                                배점 합계: {selectedQuestion.subQuestions.reduce((sum, s) => sum + (s.subPoints || 0), 0)}점
+                                                            </span>
+                                                        </div>
                                                     </div>
                                                 )}
                                             </div>
@@ -920,8 +958,8 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
                                                                         key={opt}
                                                                         onClick={() => toggleChoiceAnswer(selectedRow, opt)}
                                                                         className={`px-4 py-1.5 rounded text-sm font-bold border ${(selectedQuestion.correctAnswers || []).includes(opt)
-                                                                                ? 'bg-orange-500 text-white border-orange-500'
-                                                                                : 'bg-white text-gray-500 border-orange-200 hover:bg-orange-100'
+                                                                            ? 'bg-orange-500 text-white border-orange-500'
+                                                                            : 'bg-white text-gray-500 border-orange-200 hover:bg-orange-100'
                                                                             }`}
                                                                     >
                                                                         {opt}
@@ -934,8 +972,8 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
                                                                         key={num}
                                                                         onClick={() => toggleChoiceAnswer(selectedRow, num)}
                                                                         className={`w-8 h-8 rounded-full text-sm font-bold flex items-center justify-center border ${(selectedQuestion.correctAnswers || []).includes(num)
-                                                                                ? 'bg-orange-500 text-white border-orange-500' // 선택됨
-                                                                                : 'bg-white text-gray-500 border-orange-200 hover:bg-orange-100' // 선택 안됨
+                                                                            ? 'bg-orange-500 text-white border-orange-500' // 선택됨
+                                                                            : 'bg-white text-gray-500 border-orange-200 hover:bg-orange-100' // 선택 안됨
                                                                             }`}
                                                                     >
                                                                         {num}
