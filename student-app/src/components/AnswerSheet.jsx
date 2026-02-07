@@ -7,6 +7,13 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
         if (examData.questions) {
             // 새 형식
             return examData.questions.map(q => {
+                // 소문항이 있는 경우
+                if (q.hasSubQuestions && q.subQuestions?.length > 0) {
+                    return {
+                        type: 'subQuestions',
+                        subAnswers: q.subQuestions.map(() => '')
+                    }
+                }
                 if (q.type === 'choice4' || q.type === 'choice5') {
                     return [] // 복수선택 지원을 위해 배열
                 } else if (q.type === 'ox') {
@@ -128,11 +135,28 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
         })
     }
 
+    // 소문항 텍스트 입력
+    const handleSubAnswerChange = (qIndex, subIndex, value) => {
+        setAnswers(prev => {
+            const newAnswers = [...prev]
+            if (newAnswers[qIndex]?.type === 'subQuestions') {
+                const subAnswers = [...newAnswers[qIndex].subAnswers]
+                subAnswers[subIndex] = value
+                newAnswers[qIndex] = { ...newAnswers[qIndex], subAnswers }
+            }
+            return newAnswers
+        })
+    }
+
     // 미입력 문항 수 계산
     const getUnansweredCount = () => {
         return answers.filter((a, idx) => {
             const q = getQuestion(idx)
             if (q.type === 'essay') return false // 서술형은 빈칸 허용
+            // 소문항
+            if (a?.type === 'subQuestions') {
+                return a.subAnswers.some(sub => !sub || sub.trim() === '')
+            }
             if (Array.isArray(a)) return a.length === 0
             if (a === null || a === 0 || a === '') return true
             return false
@@ -159,11 +183,22 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
 
         // 새 형식에 맞게 답안 구성
         const submissionAnswers = isNewFormat
-            ? answers.map((a, idx) => ({
-                num: idx + 1,
-                type: getQuestion(idx).type,
-                value: a
-            }))
+            ? answers.map((a, idx) => {
+                const q = getQuestion(idx)
+                // 소문항이 있는 경우
+                if (a?.type === 'subQuestions') {
+                    return {
+                        num: idx + 1,
+                        type: q.type,
+                        subAnswers: a.subAnswers
+                    }
+                }
+                return {
+                    num: idx + 1,
+                    type: q.type,
+                    value: a
+                }
+            })
             : answers
 
         const result = await submitAnswers(
@@ -290,8 +325,8 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
                             </div>
                         )}
 
-                        {/* 단답형 */}
-                        {question.type === 'short' && (
+                        {/* 단답형 (소문항 없는 경우) */}
+                        {question.type === 'short' && !question.hasSubQuestions && (
                             <input
                                 type="text"
                                 value={answer || ''}
@@ -299,6 +334,25 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
                                 placeholder="정답을 입력하세요"
                                 className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none text-lg"
                             />
+                        )}
+
+                        {/* 소문항 입력 */}
+                        {question.hasSubQuestions && question.subQuestions?.length > 0 && (
+                            <div className="space-y-2">
+                                <div className="text-sm text-purple-600 mb-1">소문항</div>
+                                {question.subQuestions.map((sub, subIdx) => (
+                                    <div key={subIdx} className="flex items-center gap-2">
+                                        <span className="text-gray-500 font-medium w-8">({sub.subNum})</span>
+                                        <input
+                                            type="text"
+                                            value={answer?.subAnswers?.[subIdx] || ''}
+                                            onChange={(e) => handleSubAnswerChange(qIndex, subIdx, e.target.value)}
+                                            placeholder={`(${sub.subNum}) 정답`}
+                                            className="flex-1 px-3 py-2 border-2 border-gray-200 rounded-lg focus:border-purple-500 focus:outline-none"
+                                        />
+                                    </div>
+                                ))}
+                            </div>
                         )}
 
                         {/* 서술형 */}
