@@ -9,8 +9,10 @@ import {
 } from '../lib/firebase'
 import SubmissionDetailModal from './SubmissionDetailModal'
 import ResultReleaseModal from './ResultReleaseModal'
+import { useToast } from './Toast'
 
 function ResultsView({ classData, examData, answerData, submissions, onBack, onRefresh }) {
+    const { success, error: toastError } = useToast()
     const [viewMode, setViewMode] = useState('scores') // 'scores', 'items', 'analysis'
     const [sortBy, setSortBy] = useState('number')
     const [grading, setGrading] = useState(false)
@@ -147,9 +149,9 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
         const { results, error } = await gradeAllSubmissions(examData.id, submissions, answerData)
 
         if (error) {
-            alert('채점 중 오류: ' + error)
+            toastError('채점 중 오류: ' + error)
         } else {
-            alert(`${results.length}개 제출물 채점 완료!`)
+            success(`${results.length}개 제출물 채점 완료!`)
             if (onRefresh) onRefresh()
         }
         setGrading(false)
@@ -269,9 +271,9 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
 
         const { error } = await updateResultConfig(examId, config, statistics)
         if (error) {
-            alert('설정 저장 실패: ' + error)
+            toastError('설정 저장 실패: ' + error)
         } else {
-            alert('결과 전송 설정이 적용되었습니다.')
+            success('결과 전송 설정이 적용되었습니다.')
         }
     }
 
@@ -287,7 +289,7 @@ function ResultsView({ classData, examData, answerData, submissions, onBack, onR
 
         if (error) {
             setAllowRetake(!newValue) // 실패 시 롤백
-            alert('설정 변경 실패: ' + error)
+            toastError('설정 변경 실패: ' + error)
         }
     }
 

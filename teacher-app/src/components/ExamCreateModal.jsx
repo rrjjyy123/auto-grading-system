@@ -1,4 +1,5 @@
 import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { useToast } from './Toast'
 
 /**
  * 시험 생성/수정 모달 - 간소화 버전
@@ -8,6 +9,7 @@ import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
  * - editData prop이 있으면 수정 모드
  */
 function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
+    const { error: toastError } = useToast()
     const isEditMode = !!editData
     const [step, setStep] = useState(isEditMode ? 2 : 1)
     const [creating, setCreating] = useState(false)
@@ -128,9 +130,9 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
     }, [isEditMode])
 
     const handleGenerateQuestions = () => {
-        if (!examSubject.trim()) return alert('과목을 입력하세요')
-        if (!examTitle.trim()) return alert('시험 이름을 입력하세요')
-        if (questionCount < 1 || questionCount > 100) return alert('문항 수는 1~100 사이로 입력하세요')
+        if (!examSubject.trim()) return toastError('과목을 입력하세요')
+        if (!examTitle.trim()) return toastError('시험 이름을 입력하세요')
+        if (questionCount < 1 || questionCount > 100) return toastError('문항 수는 1~100 사이로 입력하세요')
 
         const basePoints = Math.floor(100 / questionCount)
         const remainder = 100 - (basePoints * questionCount)
@@ -357,7 +359,7 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
 
     // 문항 삭제
     const removeQuestion = (idx) => {
-        if (questions.length <= 1) return alert('최소 1개 문항이 필요합니다')
+        if (questions.length <= 1) return toastError('최소 1개 문항이 필요합니다')
         setQuestions(prev => prev.filter((_, i) => i !== idx).map((q, i) => ({ ...q, num: i + 1 })))
         if (selectedRow === idx) setSelectedRow(null)
         else if (selectedRow > idx) setSelectedRow(selectedRow - 1)
@@ -481,7 +483,7 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
     // 시험 생성
     const handleCreateExam = async () => {
         const validation = validateQuestions()
-        if (!validation.valid) return alert(validation.message)
+        if (!validation.valid) return toastError(validation.message)
 
         setCreating(true)
 

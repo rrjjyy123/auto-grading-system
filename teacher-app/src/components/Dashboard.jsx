@@ -10,8 +10,10 @@ import Layout from './Layout'
 import ClassDetail from './ClassDetail'
 import QRGenerator from './QRGenerator'
 import UsageGuide from './UsageGuide'
+import { useToast } from './Toast'
 
 function Dashboard({ user, onLogout }) {
+    const { success, error: toastError, info } = useToast()
     const [classes, setClasses] = useState([])
     const [loading, setLoading] = useState(true)
     const [showCreateModal, setShowCreateModal] = useState(false)
@@ -38,11 +40,11 @@ function Dashboard({ user, onLogout }) {
 
     const handleCreateClass = async () => {
         if (!newClassName.trim()) {
-            alert('학급 이름을 입력하세요')
+            toastError('학급 이름을 입력하세요')
             return
         }
         if (newStudentCount < 1 || newStudentCount > 500) {
-            alert('학생 수는 1~500명 사이로 입력하세요')
+            toastError('학생 수는 1~500명 사이로 입력하세요')
             return
         }
 
@@ -51,14 +53,14 @@ function Dashboard({ user, onLogout }) {
         setCreating(false)
 
         if (error) {
-            alert('학급 생성 실패: ' + error)
+            toastError('학급 생성 실패: ' + error)
             return
         }
 
         setShowCreateModal(false)
         setNewClassName('')
         setNewStudentCount(30)
-        alert(`${data.name} 학급이 생성되었습니다! (${data.studentCount}명)`)
+        success(`${data.name} 학급이 생성되었습니다! (${data.studentCount}명)`)
     }
 
     const handleDeleteClass = async (classId, className) => {
@@ -67,7 +69,9 @@ function Dashboard({ user, onLogout }) {
         }
         const { error } = await deleteClass(classId)
         if (error) {
-            alert('삭제 실패: ' + error)
+            toastError('삭제 실패: ' + error)
+        } else {
+            success('학급이 삭제되었습니다')
         }
     }
 
@@ -84,11 +88,15 @@ function Dashboard({ user, onLogout }) {
 
     const handleViewClass = (classItem) => {
         setSelectedClass(classItem)
+        setClassTab('exams') // 기본 탭
     }
 
     const handleBackFromClass = () => {
         setSelectedClass(null)
     }
+
+    // 학급 내 탭 상태 (시험관리/학생관리)
+    const [classTab, setClassTab] = useState('exams')
 
     // 학급 상세 보기 (Layout 안에서 렌더링)
     if (selectedClass) {
@@ -96,15 +104,19 @@ function Dashboard({ user, onLogout }) {
             <Layout
                 user={user}
                 onLogout={onLogout}
-                activeMenu="classes"
+                activeMenu={classTab}
+                selectedClass={selectedClass}
                 onMenuChange={(menu) => {
                     setSelectedClass(null)  // 학급 상세에서 나가기
                     setActiveTab(menu)
                 }}
+                onClassMenuChange={(tab) => setClassTab(tab)}
             >
                 <ClassDetail
                     classData={selectedClass}
                     onBack={handleBackFromClass}
+                    initialTab={classTab}
+                    onTabChange={(tab) => setClassTab(tab)}
                 />
             </Layout>
         )
@@ -135,18 +147,19 @@ function Dashboard({ user, onLogout }) {
                             <p className="text-gray-500">로딩중...</p>
                         </div>
                     ) : classes.length === 0 ? (
-                        <div className="text-center py-12">
-                            <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                                <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                                </svg>
+                        <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-gray-200">
+                            <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
+                                <span className="text-5xl">🏫</span>
                             </div>
-                            <p className="text-gray-500 mb-4">아직 생성된 학급이 없습니다</p>
+                            <h3 className="text-xl font-bold text-gray-800 mb-2">아직 생성된 학급이 없습니다</h3>
+                            <p className="text-gray-500 mb-8 max-w-sm mx-auto">
+                                새로운 학급을 만들어 학생들을 관리하고<br />시험을 배포하여 자동 채점 결과를 확인해보세요.
+                            </p>
                             <button
                                 onClick={() => setShowCreateModal(true)}
-                                className="px-6 py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-colors"
+                                className="px-8 py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
                             >
-                                첫 학급 만들기
+                                + 첫 학급 만들기
                             </button>
                         </div>
                     ) : (
@@ -208,7 +221,11 @@ function Dashboard({ user, onLogout }) {
         <>
             <Layout
                 user={user}
-                onLogout={onLogout}
+                onLogout={() => {
+                    if (confirm('로그아웃 하시겠습니까?')) {
+                        onLogout()
+                    }
+                }}
                 activeMenu={activeTab}
                 onMenuChange={setActiveTab}
                 onCreateClass={() => setShowCreateModal(true)}

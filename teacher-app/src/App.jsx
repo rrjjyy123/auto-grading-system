@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react'
 import { onAuthChange, signInWithGoogle, signOut } from './lib/firebase'
 import LoginScreen from './components/LoginScreen'
 import Dashboard from './components/Dashboard'
+import { ToastProvider } from './components/Toast'
 import './index.css'
 
 function App() {
@@ -32,9 +33,11 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFF8E7]">
-      <Dashboard user={user} onLogout={signOut} />
-    </div>
+    <ToastProvider>
+      <div className="min-h-screen bg-[#FFF8E7]">
+        <Dashboard user={user} onLogout={signOut} />
+      </div>
+    </ToastProvider>
   )
 }
 

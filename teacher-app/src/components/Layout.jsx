@@ -4,8 +4,13 @@ import { useState } from 'react'
  * 전역 레이아웃 - 사이드바 + 메인 콘텐츠
  * 모든 페이지에서 공통으로 사용
  */
-function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateClass }) {
+function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateClass, selectedClass, onClassMenuChange }) {
     const [isSidebarOpen, setIsSidebarOpen] = useState(true)
+
+    // 로고 클릭 시 메인 페이지로 이동
+    const handleLogoClick = () => {
+        onMenuChange?.('classes')
+    }
 
     return (
         <div className="min-h-screen flex">
@@ -24,8 +29,11 @@ function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateCl
                 transform transition-transform duration-200
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
-                {/* 상단: 앱 제목 + 이메일 */}
-                <div className="p-4 border-b border-amber-200">
+                {/* 상단: 앱 제목 + 이메일 (클릭 가능) */}
+                <div
+                    className="p-4 border-b border-amber-200 cursor-pointer hover:bg-amber-50 transition-colors"
+                    onClick={handleLogoClick}
+                >
                     <div className="flex items-center gap-2 mb-1">
                         <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
                             <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -38,7 +46,7 @@ function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateCl
                 </div>
 
                 {/* 새 학급 만들기 버튼 */}
-                {onCreateClass && (
+                {onCreateClass && !selectedClass && (
                     <div className="p-4">
                         <button
                             onClick={onCreateClass}
@@ -50,24 +58,59 @@ function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateCl
                     </div>
                 )}
 
+                {/* 현재 선택된 학급 표시 */}
+                {selectedClass && (
+                    <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
+                        <p className="text-xs text-blue-500 mb-1">현재 학급</p>
+                        <p className="font-bold text-blue-700 truncate">📚 {selectedClass.name}</p>
+                    </div>
+                )}
+
                 {/* 메뉴 */}
-                <nav className="flex-1 px-4">
-                    <p className="text-xs text-gray-400 mb-2">메뉴</p>
+                <nav className="flex-1 px-4 py-2 overflow-y-auto">
+                    <p className="text-xs text-gray-400 mb-2 mt-2">메뉴</p>
                     <button
                         onClick={() => onMenuChange?.('classes')}
-                        className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors flex items-center gap-3 ${activeMenu === 'classes'
-                                ? 'bg-green-100 text-green-700 font-semibold'
-                                : 'text-gray-600 hover:bg-amber-100'
+                        className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors flex items-center gap-3 ${activeMenu === 'classes' && !selectedClass
+                            ? 'bg-green-100 text-green-700 font-semibold'
+                            : 'text-gray-600 hover:bg-amber-100'
                             }`}
                     >
                         <span>📋</span>
                         학급 목록
                     </button>
+
+                    {/* 학급 선택 시 시험관리/학생관리 메뉴 표시 */}
+                    {selectedClass && (
+                        <>
+                            <button
+                                onClick={() => onClassMenuChange?.('exams')}
+                                className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors flex items-center gap-3 ${activeMenu === 'exams'
+                                    ? 'bg-green-100 text-green-700 font-semibold'
+                                    : 'text-gray-600 hover:bg-amber-100'
+                                    }`}
+                            >
+                                <span>📝</span>
+                                시험 관리
+                            </button>
+                            <button
+                                onClick={() => onClassMenuChange?.('students')}
+                                className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors flex items-center gap-3 ${activeMenu === 'students'
+                                    ? 'bg-green-100 text-green-700 font-semibold'
+                                    : 'text-gray-600 hover:bg-amber-100'
+                                    }`}
+                            >
+                                <span>👥</span>
+                                학생 관리
+                            </button>
+                        </>
+                    )}
+
                     <button
                         onClick={() => onMenuChange?.('guide')}
                         className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors flex items-center gap-3 ${activeMenu === 'guide'
-                                ? 'bg-green-100 text-green-700 font-semibold'
-                                : 'text-gray-600 hover:bg-amber-100'
+                            ? 'bg-green-100 text-green-700 font-semibold'
+                            : 'text-gray-600 hover:bg-amber-100'
                             }`}
                     >
                         <span>📖</span>

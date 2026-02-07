@@ -157,22 +157,38 @@ function SubmissionDetailModal({
     const handleSave = async () => {
         setSaving(true)
 
-        const totalScore = calculateTotalScore()
         const allEssaysGraded = essayQuestions.every(q =>
             manualScores[q.questionNum] !== undefined
         )
 
-        // correctCount 재계산 (오버라이드 반영)
-        let newCorrectCount = 0
-        itemResults?.forEach(item => {
-            if (item.type !== 'essay') {
-                if (overrides[item.questionNum] !== undefined) {
-                    if (overrides[item.questionNum]) newCorrectCount++
-                } else if (item.correct) {
-                    newCorrectCount++
+        // itemResults 업데이트 (수동 채점 및 오버라이드 반영)
+        const updatedItemResults = itemResults.map(item => {
+            const newItem = { ...item }
+
+            // 서술형 점수 반영
+            if (item.type === 'essay') {
+                if (manualScores[item.questionNum] !== undefined) {
+                    newItem.score = manualScores[item.questionNum]
+                    // 만점이면 정답 처리 (또는 부분 점수 정책에 따라 다를 수 있음. 여기서는 만점 기준)
+                    newItem.correct = newItem.score === item.maxPoints
                 }
             }
+
+            // 오버라이드 반영
+            if (overrides[item.questionNum] !== undefined) {
+                newItem.correct = overrides[item.questionNum]
+            }
+
+            return newItem
         })
+
+        // 총점 재계산
+        const totalScore = updatedItemResults.reduce((sum, item) => {
+            return sum + (item.score || (item.correct ? item.maxPoints : 0))
+        }, 0)
+
+        // 정답 수 재계산
+        const newCorrectCount = updatedItemResults.filter(item => item.correct).length
 
         const { error } = await updateSubmissionScore(submission.id, {
             score: totalScore,
@@ -180,7 +196,8 @@ function SubmissionDetailModal({
             autoScore: submission.autoScore,
             manualScores: manualScores,
             overrides: overrides,
-            manualGradingComplete: allEssaysGraded || Object.keys(manualScores).length > 0
+            manualGradingComplete: allEssaysGraded || Object.keys(manualScores).length > 0,
+            itemResults: updatedItemResults // 업데이트된 문항별 결과 저장 (학생 앱 표시용)
         })
 
         setSaving(false)

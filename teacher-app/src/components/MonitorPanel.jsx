@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { fetchExamLogs } from '../lib/firebase'
+import { useToast } from './Toast'
 
 /**
  * 접속 확인 패널 (저비용 모니터링)
  * 버튼을 누를 때만 데이터를 가져와서 표시
  */
 function MonitorPanel({ exam, classData, onClose }) {
+    const { error: toastError } = useToast()
     const [logs, setLogs] = useState({})
     const [loading, setLoading] = useState(false)
     const [lastUpdated, setLastUpdated] = useState(null)
@@ -17,7 +19,7 @@ function MonitorPanel({ exam, classData, onClose }) {
             setLogs(data)
             setLastUpdated(new Date())
         } else if (error) {
-            alert('로그 조회 실패: ' + error)
+            toastError('로그 조회 실패: ' + error)
         }
         setLoading(false)
     }
@@ -85,8 +87,8 @@ function MonitorPanel({ exam, classData, onClose }) {
                             onClick={checkConnection}
                             disabled={loading}
                             className={`px-4 py-2 rounded-lg font-semibold flex items-center gap-2 transition-all ${loading
-                                    ? 'bg-gray-200 text-gray-500'
-                                    : 'bg-blue-500 text-white hover:bg-blue-600 shadow-md'
+                                ? 'bg-gray-200 text-gray-500'
+                                : 'bg-blue-500 text-white hover:bg-blue-600 shadow-md'
                                 }`}
                         >
                             {loading ? (

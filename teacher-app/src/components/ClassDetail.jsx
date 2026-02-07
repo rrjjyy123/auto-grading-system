@@ -12,8 +12,10 @@ import ResultsView from './ResultsView'
 import ExamCreateModal from './ExamCreateModal'
 import MonitorPanel from './MonitorPanel'
 import StudentManagement from './StudentManagement'
+import { useToast } from './Toast'
 
-function ClassDetail({ classData, onBack }) {
+function ClassDetail({ classData, onBack, initialTab = 'exams', onTabChange }) {
+    const { success, error: toastError, info } = useToast()
     const [exams, setExams] = useState([])
     const [submissions, setSubmissions] = useState([])
     const [loading, setLoading] = useState(true)
@@ -23,7 +25,20 @@ function ClassDetail({ classData, onBack }) {
     const [monitorExam, setMonitorExam] = useState(null)
 
     // 탭 상태: 'exams' | 'students'
-    const [activeTab, setActiveTab] = useState('exams')
+    const [activeTab, setActiveTab] = useState(initialTab)
+
+    // 외부에서 탭 변경 시 동기화
+    useEffect(() => {
+        setActiveTab(initialTab)
+        // 탭이 변경되면 상세 뷰(시험 결과)를 닫고 목록으로 돌아감
+        setSelectedExam(null)
+    }, [initialTab])
+
+    // 탭 변경 핸들러
+    const handleTabChange = (tab) => {
+        setActiveTab(tab)
+        onTabChange?.(tab)
+    }
 
     useEffect(() => {
         const unsubExams = subscribeToExams(classData.id, (examList) => {
@@ -44,11 +59,11 @@ function ClassDetail({ classData, onBack }) {
     const handleCreateExam = async (examData) => {
         const { error } = await createExam(classData.id, examData)
         if (error) {
-            alert('시험 생성 실패: ' + error)
+            toastError('시험 생성 실패: ' + error)
             return
         }
         setShowCreateExam(false)
-        alert('시험이 생성되었습니다!')
+        success('시험이 생성되었습니다!')
     }
 
     const handleDeleteExam = async (examId, examTitle) => {
@@ -57,7 +72,9 @@ function ClassDetail({ classData, onBack }) {
         }
         const { error } = await deleteExam(examId)
         if (error) {
-            alert('삭제 실패: ' + error)
+            toastError('삭제 실패: ' + error)
+        } else {
+            success('시험이 삭제되었습니다')
         }
     }
 
@@ -65,7 +82,7 @@ function ClassDetail({ classData, onBack }) {
     const handleEditExam = async (exam) => {
         const { data, error } = await getExamAnswers(exam.id)
         if (error && !exam.answers) {
-            alert('정답 로딩 실패: ' + error)
+            toastError('정답 로딩 실패: ' + error)
             return
         }
         setEditingExam({
@@ -77,11 +94,11 @@ function ClassDetail({ classData, onBack }) {
     const handleUpdateExam = async (examData) => {
         const { error } = await updateExam(editingExam.exam.id, classData.id, examData)
         if (error) {
-            alert('시험 수정 실패: ' + error)
+            toastError('시험 수정 실패: ' + error)
             return
         }
         setEditingExam(null)
-        alert('시험이 수정되었습니다!')
+        success('시험이 수정되었습니다!')
     }
 
     const getExamSubmissionCount = (examId) => {
@@ -97,7 +114,7 @@ function ClassDetail({ classData, onBack }) {
                 setSelectedExam(exam)
                 return
             }
-            alert('정답 로딩 실패: ' + error)
+            toastError('정답 로딩 실패: ' + error)
             return
         }
         // examData에 answers 포함 (새 방식인 경우 questions에서 추출)
@@ -176,22 +193,43 @@ function ClassDetail({ classData, onBack }) {
                         </div>
                     </div>
 
+                    {/* 통계 카드 */}
+                    <div className="grid grid-cols-3 gap-4 mb-4">
+                        <div className="bg-blue-50 p-4 rounded-xl text-center">
+                            <p className="text-2xl font-bold text-blue-600">{classData.studentCount || 0}</p>
+                            <p className="text-sm text-gray-500">학생 수</p>
+                        </div>
+                        <div className="bg-green-50 p-4 rounded-xl text-center">
+                            <p className="text-2xl font-bold text-green-600">{exams.length}</p>
+                            <p className="text-sm text-gray-500">시험 수</p>
+                        </div>
+                        <div className="bg-purple-50 p-4 rounded-xl text-center">
+                            <p className="text-2xl font-bold text-purple-600">
+                                {exams.length > 0 && submissions.length > 0
+                                    ? Math.round((submissions.length / (classData.studentCount * exams.length)) * 100) + '%'
+                                    : '-'
+                                }
+                            </p>
+                            <p className="text-sm text-gray-500">응시율</p>
+                        </div>
+                    </div>
+
                     {/* 탭 버튼 */}
                     <div className="flex gap-2 border-b border-gray-200 -mx-6 px-6">
                         <button
-                            onClick={() => setActiveTab('exams')}
+                            onClick={() => handleTabChange('exams')}
                             className={`px-4 py-3 font-semibold border-b-2 transition-colors ${activeTab === 'exams'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             📝 시험 관리
                         </button>
                         <button
-                            onClick={() => setActiveTab('students')}
+                            onClick={() => handleTabChange('students')}
                             className={`px-4 py-3 font-semibold border-b-2 transition-colors ${activeTab === 'students'
-                                    ? 'border-blue-500 text-blue-600'
-                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                                ? 'border-blue-500 text-blue-600'
+                                : 'border-transparent text-gray-500 hover:text-gray-700'
                                 }`}
                         >
                             👥 학생 관리
@@ -222,7 +260,17 @@ function ClassDetail({ classData, onBack }) {
                                 </div>
                             ) : exams.length === 0 ? (
                                 <div className="text-center py-12">
-                                    <p className="text-gray-500">아직 생성된 시험이 없습니다</p>
+                                    <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl">
+                                        📝
+                                    </div>
+                                    <p className="text-xl font-bold text-gray-800 mb-2">생성된 시험이 없습니다</p>
+                                    <p className="text-gray-500 mb-8">새로운 시험을 만들어 학생들에게 배포해보세요</p>
+                                    <button
+                                        onClick={() => setShowCreateExam(true)}
+                                        className="px-6 py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors shadow-md hover:shadow-lg"
+                                    >
+                                        + 첫 시험 만들기
+                                    </button>
                                 </div>
                             ) : (
                                 <div className="grid gap-4">
@@ -317,7 +365,7 @@ function ClassDetail({ classData, onBack }) {
                 )}
 
                 {activeTab === 'students' && (
-                    <StudentManagement classData={classData} />
+                    <StudentManagement classData={classData} exams={exams} />
                 )}
             </div>
 
