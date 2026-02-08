@@ -122,6 +122,11 @@ function Dashboard({ user, onLogout }) {
         )
     }
 
+    // 통계 계산
+    const totalClasses = classes.length
+    const totalStudents = classes.reduce((sum, c) => sum + (c.studentCount || 0), 0)
+    const activeClasses = classes.filter(c => c.isActive).length
+
     // 메인 콘텐츠 렌더링
     const renderMainContent = () => {
         if (activeTab === 'guide') {
@@ -130,83 +135,146 @@ function Dashboard({ user, onLogout }) {
 
         // 학급 목록
         return (
-            <div className="max-w-5xl mx-auto">
-                {/* 헤더 */}
-                <div className="bg-white rounded-2xl shadow-lg p-6 mb-6">
-                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                        <span>📋</span>
-                        내 학급 목록
-                    </h2>
+            <div className="max-w-6xl mx-auto space-y-8">
+                {/* 상단 웰컴 섹션 & 통계 위젯 */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    <div className="md:col-span-3 bg-gradient-to-r from-primary to-indigo-700 rounded-3xl p-8 text-white shadow-xl flex items-center justify-between overflow-hidden relative">
+                        <div className="relative z-10">
+                            <h2 className="text-3xl font-extrabold mb-2">환영합니다, 선생님! 👋</h2>
+                            <p className="text-indigo-100 font-medium">오늘도 OnMarking과 함께 스마트한 학급 관리를 시작해보세요.</p>
+                        </div>
+                        {/* 장식 배경 */}
+                        <div className="absolute right-0 top-0 h-full w-1/2 bg-white/5 skew-x-12 transform translate-x-20"></div>
+                        <div className="absolute right-10 bottom-[-20px] text-white/10 text-9xl font-black rotate-12">OM</div>
+                    </div>
+
+                    {/* 통계 카드 */}
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div className="w-14 h-14 bg-indigo-50 rounded-2xl flex items-center justify-center text-2xl">
+                            📋
+                        </div>
+                        <div>
+                            <p className="text-gray-500 text-sm font-semibold">총 학급</p>
+                            <p className="text-2xl font-bold text-gray-900">{totalClasses}개</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div className="w-14 h-14 bg-emerald-50 rounded-2xl flex items-center justify-center text-2xl">
+                            👥
+                        </div>
+                        <div>
+                            <p className="text-gray-500 text-sm font-semibold">총 학생 수</p>
+                            <p className="text-2xl font-bold text-gray-900">{totalStudents}명</p>
+                        </div>
+                    </div>
+
+                    <div className="bg-white p-6 rounded-2xl shadow-sm border border-gray-100 flex items-center gap-4">
+                        <div className="w-14 h-14 bg-amber-50 rounded-2xl flex items-center justify-center text-2xl">
+                            ⚡
+                        </div>
+                        <div>
+                            <p className="text-gray-500 text-sm font-semibold">활성 학급</p>
+                            <p className="text-2xl font-bold text-gray-900">{activeClasses}개</p>
+                        </div>
+                    </div>
                 </div>
 
-                {/* 학급 목록 */}
-                <div className="bg-white rounded-2xl shadow-lg p-6">
+                {/* 학급 목록 헤더 */}
+                <div className="flex items-center justify-between px-2">
+                    <h3 className="text-xl font-bold text-gray-900 flex items-center gap-2">
+                        <span>🏫</span>
+                        나의 학급
+                    </h3>
+                    <button
+                        onClick={() => setShowCreateModal(true)}
+                        className="px-5 py-2.5 bg-primary text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center gap-2 text-sm"
+                    >
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 4v16m8-8H4" /></svg>
+                        새 학급 만들기
+                    </button>
+                </div>
+
+                {/* 학급 목록 그리드 */}
+                <div className="grid gap-6">
                     {loading ? (
-                        <div className="text-center py-12">
-                            <div className="animate-spin w-8 h-8 border-3 border-blue-500 border-t-transparent rounded-full mx-auto mb-3"></div>
-                            <p className="text-gray-500">로딩중...</p>
+                        <div className="text-center py-20">
+                            <div className="animate-spin w-10 h-10 border-4 border-gray-200 border-t-primary rounded-full mx-auto mb-4"></div>
+                            <p className="text-gray-500 font-medium">데이터를 불러오는 중입니다...</p>
                         </div>
                     ) : classes.length === 0 ? (
-                        <div className="text-center py-20 bg-white rounded-2xl border-2 border-dashed border-gray-200">
-                            <div className="w-24 h-24 bg-blue-50 rounded-full flex items-center justify-center mx-auto mb-6">
-                                <span className="text-5xl">🏫</span>
+                        <div className="text-center py-24 bg-white rounded-3xl border-2 border-dashed border-gray-200">
+                            <div className="w-20 h-20 bg-gray-50 rounded-full flex items-center justify-center mx-auto mb-6 text-4xl shadow-inner">
+                                📭
                             </div>
-                            <h3 className="text-xl font-bold text-gray-800 mb-2">아직 생성된 학급이 없습니다</h3>
-                            <p className="text-gray-500 mb-8 max-w-sm mx-auto">
-                                새로운 학급을 만들어 학생들을 관리하고<br />시험을 배포하여 자동 채점 결과를 확인해보세요.
+                            <h3 className="text-xl font-bold text-gray-900 mb-2">아직 생성된 학급이 없습니다</h3>
+                            <p className="text-gray-500 mb-8 max-w-sm mx-auto leading-relaxed">
+                                오른쪽 상단의 '새 학급 만들기' 버튼을 눌러<br />첫 번째 학급을 시작해보세요!
                             </p>
-                            <button
-                                onClick={() => setShowCreateModal(true)}
-                                className="px-8 py-3 bg-blue-500 text-white rounded-xl font-bold hover:bg-blue-600 transition-colors shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 transition-all"
-                            >
-                                + 첫 학급 만들기
-                            </button>
                         </div>
                     ) : (
-                        <div className="grid gap-4">
+                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                             {classes.map((classItem) => (
                                 <div
                                     key={classItem.id}
                                     onClick={() => handleViewClass(classItem)}
-                                    className={`border-2 rounded-xl p-4 transition-all cursor-pointer hover:shadow-md ${classItem.isActive
-                                        ? 'border-green-200 bg-green-50 hover:border-green-300'
-                                        : 'border-gray-200 bg-gray-50 hover:border-gray-300'
-                                        }`}
+                                    className={`
+                                        group relative overflow-hidden bg-white rounded-3xl p-6 transition-all duration-300 border cursor-pointer hover:-translate-y-1
+                                        ${classItem.isActive
+                                            ? 'border-gray-100 shadow-sm hover:shadow-xl hover:border-indigo-100'
+                                            : 'border-gray-100 shadow-sm opacity-80 bg-gray-50 hover:opacity-100'
+                                        }
+                                    `}
                                 >
-                                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                                        <div className="flex-1">
-                                            <div className="flex items-center gap-2 mb-1">
-                                                <span className="text-lg">📚</span>
-                                                <h3 className="text-lg font-bold text-gray-800">{classItem.name}</h3>
-                                                <span className={`px-2 py-0.5 rounded-full text-xs font-semibold ${classItem.isActive
-                                                    ? 'bg-green-200 text-green-800'
-                                                    : 'bg-gray-300 text-gray-600'
-                                                    }`}>
-                                                    {classItem.isActive ? '활성' : '비활성'}
-                                                </span>
+                                    {/* 상태 뱃지 */}
+                                    <div className="absolute top-4 right-4 z-10">
+                                        <span className={`px-3 py-1 rounded-full text-xs font-bold shadow-sm ${classItem.isActive
+                                            ? 'bg-emerald-100 text-emerald-700'
+                                            : 'bg-gray-200 text-gray-500'
+                                            }`}>
+                                            {classItem.isActive ? '운영중' : '비활성'}
+                                        </span>
+                                    </div>
+
+                                    {/* 카드 상단 장식 */}
+                                    <div className={`absolute top-0 left-0 w-full h-1.5 ${classItem.isActive ? 'bg-gradient-to-r from-primary to-indigo-400' : 'bg-gray-200'}`} />
+
+                                    <div className="mt-2 mb-6">
+                                        <div className="flex items-center gap-3 mb-2">
+                                            <div className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-inner ${classItem.isActive ? 'bg-indigo-50 text-primary' : 'bg-gray-200 text-gray-400'}`}>
+                                                📚
                                             </div>
-                                            <p className="text-gray-500 text-sm">
-                                                학생 {classItem.studentCount}명 •
-                                                {classItem.createdAt?.toDate?.().toLocaleDateString('ko-KR') || '방금 전'}
-                                            </p>
+                                            <h3 className="text-lg font-bold text-gray-900 truncate flex-1">{classItem.name}</h3>
                                         </div>
-                                        <div className="flex flex-wrap gap-2" onClick={(e) => e.stopPropagation()}>
-                                            <button
-                                                onClick={() => handleToggleActive(classItem.id, classItem.isActive)}
-                                                className={`px-4 py-2 rounded-lg font-semibold transition-colors text-sm ${classItem.isActive
-                                                    ? 'bg-yellow-100 text-yellow-700 hover:bg-yellow-200'
-                                                    : 'bg-green-100 text-green-700 hover:bg-green-200'
-                                                    }`}
-                                            >
-                                                {classItem.isActive ? '비활성화' : '활성화'}
-                                            </button>
-                                            <button
-                                                onClick={() => handleDeleteClass(classItem.id, classItem.name)}
-                                                className="px-4 py-2 bg-red-100 text-red-600 rounded-lg font-semibold hover:bg-red-200 transition-colors text-sm"
-                                            >
-                                                삭제
-                                            </button>
-                                        </div>
+                                        <p className="text-gray-500 text-sm font-medium flex items-center gap-2 pl-1">
+                                            <span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">학생 {classItem.studentCount}명</span>
+                                            <span className="text-gray-300">|</span>
+                                            <span>{classItem.createdAt?.toDate?.().toLocaleDateString('ko-KR') || '방금 전'} 생성</span>
+                                        </p>
+                                    </div>
+
+                                    <div className="grid grid-cols-2 gap-2 pt-4 border-t border-gray-50">
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleToggleActive(classItem.id, classItem.isActive);
+                                            }}
+                                            className={`py-2 rounded-xl text-sm font-bold transition-colors ${classItem.isActive
+                                                    ? 'bg-gray-50 text-gray-600 hover:bg-gray-100'
+                                                    : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                                                }`}
+                                        >
+                                            {classItem.isActive ? '비활성화' : '다시 활성화'}
+                                        </button>
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                handleDeleteClass(classItem.id, classItem.name);
+                                            }}
+                                            className="py-2 bg-white text-rose-500 border border-rose-100 rounded-xl text-sm font-bold hover:bg-rose-50 transition-colors"
+                                        >
+                                            삭제
+                                        </button>
                                     </div>
                                 </div>
                             ))}
@@ -235,60 +303,77 @@ function Dashboard({ user, onLogout }) {
 
             {/* 학급 생성 모달 */}
             {showCreateModal && (
-                <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-                    <div className="bg-white rounded-2xl p-6 w-full max-w-md">
-                        <h2 className="text-xl font-bold text-gray-800 mb-4">새 학급 만들기</h2>
+                <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-fade-in">
+                    <div className="bg-white rounded-3xl p-8 w-full max-w-md shadow-2xl relative overflow-hidden">
+                        <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-primary to-indigo-400" />
+
+                        <div className="text-center mb-6">
+                            <div className="w-16 h-16 bg-indigo-50 rounded-2xl flex items-center justify-center mx-auto mb-4 text-3xl shadow-inner">
+                                ✨
+                            </div>
+                            <h2 className="text-2xl font-bold text-gray-900">새 학급 만들기</h2>
+                            <p className="text-gray-500 text-sm mt-1">학생들과 함께할 새로운 공간을 만듭니다</p>
+                        </div>
 
                         {/* 개인정보 보호 안내 */}
-                        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                            <p className="text-yellow-800 font-semibold text-sm mb-1">⚠️ 개인정보 보호 안내</p>
-                            <p className="text-yellow-700 text-xs mb-2">
-                                학급 이름에 학교명, 학년, 반 등 식별 가능한 정보 대신 <strong>가칭(별명)</strong>을 사용해주세요.
+                        <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4 mb-6">
+                            <div className="flex items-center gap-2 mb-2">
+                                <span className="text-amber-500">🛡️</span>
+                                <p className="text-amber-800 font-bold text-sm">개인정보 보호를 위해</p>
+                            </div>
+                            <p className="text-amber-700 text-xs leading-relaxed mb-3">
+                                식별 가능한 정보(학교명, 학년반) 대신 <br />
+                                <strong>친근한 별명(가칭)</strong>을 사용해주세요.
                             </p>
-                            <div className="text-xs">
-                                <p className="text-green-600">✅ 권장: 사랑반, 행복반, 열정반</p>
-                                <p className="text-red-600">❌ 금지: 서울OO초 6학년 3반</p>
+                            <div className="flex gap-2 text-[11px] font-medium">
+                                <span className="px-2 py-1 bg-white rounded border border-amber-200 text-emerald-600">✅ 사랑반, 행복반</span>
+                                <span className="px-2 py-1 bg-white rounded border border-amber-200 text-rose-500 decoration-line-through">6학년 3반</span>
                             </div>
                         </div>
 
-                        <div className="space-y-4">
+                        <div className="space-y-5">
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">학급 이름</label>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">학급 이름</label>
                                 <input
                                     type="text"
                                     value={newClassName}
                                     onChange={(e) => setNewClassName(e.target.value)}
-                                    placeholder="예: 사랑반, 행복반"
-                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                                    placeholder="예: 독서토론반, 열정반"
+                                    className="w-full px-4 py-3 border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all font-medium placeholder:text-gray-300"
                                 />
                             </div>
                             <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">학생 수 (1번 ~ N번)</label>
-                                <input
-                                    type="number"
-                                    value={newStudentCount}
-                                    onChange={(e) => setNewStudentCount(parseInt(e.target.value) || 1)}
-                                    min="1"
-                                    max="500"
-                                    className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                />
-                                <p className="text-sm text-gray-500 mt-1">각 학생에게 고유한 6자리 코드가 생성됩니다</p>
+                                <label className="block text-sm font-bold text-gray-700 mb-2">
+                                    학생 수
+                                    <span className="ml-2 text-xs font-normal text-gray-400">최대 500명</span>
+                                </label>
+                                <div className="relative">
+                                    <input
+                                        type="number"
+                                        value={newStudentCount}
+                                        onChange={(e) => setNewStudentCount(parseInt(e.target.value) || 1)}
+                                        min="1"
+                                        max="500"
+                                        className="w-full px-4 py-3 border-2 border-gray-100 rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/10 focus:outline-none transition-all font-medium text-lg"
+                                    />
+                                    <div className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 text-sm font-medium pointer-events-none">명</div>
+                                </div>
                             </div>
                         </div>
 
-                        <div className="flex gap-3 mt-6">
+                        <div className="flex gap-3 mt-8">
                             <button
                                 onClick={() => setShowCreateModal(false)}
-                                className="flex-1 px-4 py-3 bg-gray-200 text-gray-700 rounded-xl font-semibold hover:bg-gray-300 transition-colors"
+                                className="flex-1 px-4 py-3.5 bg-gray-100 text-gray-600 rounded-xl font-bold hover:bg-gray-200 transition-colors"
                             >
                                 취소
                             </button>
                             <button
                                 onClick={handleCreateClass}
                                 disabled={creating}
-                                className="flex-1 px-4 py-3 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600 transition-colors disabled:opacity-50"
+                                className="flex-1 px-4 py-3.5 bg-primary text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-lg shadow-indigo-200 disabled:opacity-50 disabled:shadow-none"
                             >
-                                {creating ? '생성중...' : '생성하기'}
+                                {creating ? '생성중...' : '학급 생성하기'}
                             </button>
                         </div>
                     </div>

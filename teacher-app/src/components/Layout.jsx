@@ -13,7 +13,7 @@ function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateCl
     }
 
     return (
-        <div className="min-h-screen flex">
+        <div className="min-h-screen flex bg-background">
             {/* 모바일 오버레이 */}
             {isSidebarOpen && (
                 <div
@@ -25,34 +25,40 @@ function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateCl
             {/* 사이드바 */}
             <aside className={`
                 fixed lg:static inset-y-0 left-0 z-30
-                w-64 bg-[#FFF8E7] border-r border-amber-200 flex flex-col min-h-screen
-                transform transition-transform duration-200
+                w-64 bg-white border-r border-gray-200 flex flex-col min-h-screen
+                transform transition-transform duration-200 shadow-sm
                 ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
             `}>
-                {/* 상단: 앱 제목 + 이메일 (클릭 가능) */}
+                {/* 상단: 로고 */}
                 <div
-                    className="p-4 border-b border-amber-200 cursor-pointer hover:bg-amber-50 transition-colors"
+                    className="p-6 cursor-pointer hover:bg-gray-50 transition-colors"
                     onClick={handleLogoClick}
                 >
-                    <div className="flex items-center gap-2 mb-1">
-                        <div className="w-8 h-8 bg-blue-500 rounded-lg flex items-center justify-center">
-                            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-md">
+                            <svg className="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                             </svg>
                         </div>
-                        <span className="font-bold text-gray-800">자동채점 시스템</span>
+                        <div>
+                            <span className="block font-extrabold text-xl text-gray-900 tracking-tight leading-none">OnMarking</span>
+                            <span className="text-[10px] text-primary font-bold tracking-widest uppercase">Teacher</span>
+                        </div>
                     </div>
-                    <p className="text-xs text-gray-500 truncate">{user.email}</p>
                 </div>
 
                 {/* 새 학급 만들기 버튼 */}
                 {onCreateClass && !selectedClass && (
-                    <div className="p-4">
+                    <div className="px-4 mb-4">
                         <button
                             onClick={onCreateClass}
-                            className="w-full py-3 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 transition-colors flex items-center justify-center gap-2"
+                            className="w-full py-3.5 bg-primary text-white rounded-xl font-bold hover:bg-indigo-700 transition-all shadow-md hover:shadow-lg flex items-center justify-center gap-2 group"
                         >
-                            <span className="text-lg">+</span>
+                            <span className="bg-white/20 rounded-lg p-1 group-hover:bg-white/30 transition-colors">
+                                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M12 4v16m8-8H4" />
+                                </svg>
+                            </span>
                             새 학급 만들기
                         </button>
                     </div>
@@ -60,23 +66,26 @@ function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateCl
 
                 {/* 현재 선택된 학급 표시 */}
                 {selectedClass && (
-                    <div className="px-4 py-3 bg-blue-50 border-b border-blue-100">
-                        <p className="text-xs text-blue-500 mb-1">현재 학급</p>
-                        <p className="font-bold text-blue-700 truncate">📚 {selectedClass.name}</p>
+                    <div className="px-4 mb-4">
+                        <div className="p-4 bg-indigo-50/50 rounded-2xl border border-indigo-100">
+                            <p className="text-xs font-bold text-primary mb-1 uppercase tracking-wider">Current Class</p>
+                            <p className="font-bold text-gray-900 truncate text-lg">{selectedClass.name}</p>
+                        </div>
                     </div>
                 )}
 
                 {/* 메뉴 */}
-                <nav className="flex-1 px-4 py-2 overflow-y-auto">
-                    <p className="text-xs text-gray-400 mb-2 mt-2">메뉴</p>
+                <nav className="flex-1 px-4 py-2 overflow-y-auto space-y-1">
+                    <p className="px-4 text-xs font-semibold text-gray-400 mb-2 mt-2 uppercase tracking-wider">Menu</p>
+
                     <button
                         onClick={() => onMenuChange?.('classes')}
-                        className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors flex items-center gap-3 ${activeMenu === 'classes' && !selectedClass
-                            ? 'bg-green-100 text-green-700 font-semibold'
-                            : 'text-gray-600 hover:bg-amber-100'
+                        className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 font-medium ${activeMenu === 'classes' && !selectedClass
+                            ? 'bg-indigo-50 text-primary font-bold shadow-sm'
+                            : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                             }`}
                     >
-                        <span>📋</span>
+                        <span className="text-lg">📋</span>
                         학급 목록
                     </button>
 
@@ -85,57 +94,67 @@ function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateCl
                         <>
                             <button
                                 onClick={() => onClassMenuChange?.('exams')}
-                                className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors flex items-center gap-3 ${activeMenu === 'exams'
-                                    ? 'bg-green-100 text-green-700 font-semibold'
-                                    : 'text-gray-600 hover:bg-amber-100'
+                                className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 font-medium ${activeMenu === 'exams'
+                                    ? 'bg-indigo-50 text-primary font-bold shadow-sm'
+                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                                     }`}
                             >
-                                <span>📝</span>
+                                <span className="text-lg">📝</span>
                                 시험 관리
                             </button>
                             <button
                                 onClick={() => onClassMenuChange?.('students')}
-                                className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors flex items-center gap-3 ${activeMenu === 'students'
-                                    ? 'bg-green-100 text-green-700 font-semibold'
-                                    : 'text-gray-600 hover:bg-amber-100'
+                                className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 font-medium ${activeMenu === 'students'
+                                    ? 'bg-indigo-50 text-primary font-bold shadow-sm'
+                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
                                     }`}
                             >
-                                <span>👥</span>
+                                <span className="text-lg">👥</span>
                                 학생 관리
                             </button>
                         </>
                     )}
 
-                    <button
-                        onClick={() => onMenuChange?.('guide')}
-                        className={`w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors flex items-center gap-3 ${activeMenu === 'guide'
-                            ? 'bg-green-100 text-green-700 font-semibold'
-                            : 'text-gray-600 hover:bg-amber-100'
-                            }`}
-                    >
-                        <span>📖</span>
-                        사용 안내
-                    </button>
+                    <div className="pt-4 mt-2 border-t border-gray-100">
+                        <p className="px-4 text-xs font-semibold text-gray-400 mb-2 mt-2 uppercase tracking-wider">Support</p>
+                        <button
+                            onClick={() => onMenuChange?.('guide')}
+                            className={`w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 font-medium ${activeMenu === 'guide'
+                                ? 'bg-indigo-50 text-primary font-bold shadow-sm'
+                                : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                }`}
+                        >
+                            <span className="text-lg">📖</span>
+                            사용 안내
+                        </button>
 
-                    <p className="text-xs text-gray-400 mt-6 mb-2">바로가기</p>
-                    <a
-                        href="https://auto-grading-for-student.vercel.app/"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="w-full text-left px-4 py-3 rounded-xl mb-1 transition-colors flex items-center gap-3 text-gray-600 hover:bg-amber-100"
-                    >
-                        <span>🎓</span>
-                        학생용 앱
-                    </a>
+                        <a
+                            href="https://auto-grading-for-student.vercel.app/"
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="w-full text-left px-4 py-3 rounded-xl transition-all flex items-center gap-3 font-medium text-gray-600 hover:bg-gray-50 hover:text-gray-900"
+                        >
+                            <span className="text-lg">🎓</span>
+                            학생용 앱
+                        </a>
+                    </div>
                 </nav>
 
-                {/* 하단: 로그아웃 */}
-                <div className="p-4 border-t border-amber-200">
+                {/* 하단: 프로필 & 로그아웃 */}
+                <div className="p-4 border-t border-gray-100 bg-gray-50/50">
+                    <div className="flex items-center gap-3 mb-3 px-2">
+                        <div className="w-10 h-10 rounded-full bg-white border border-gray-200 flex items-center justify-center text-xl shadow-sm">
+                            🧑‍🏫
+                        </div>
+                        <div className="flex-1 min-w-0">
+                            <p className="text-sm font-bold text-gray-900 truncate">선생님</p>
+                            <p className="text-xs text-gray-500 truncate">{user.email}</p>
+                        </div>
+                    </div>
                     <button
                         onClick={onLogout}
-                        className="w-full text-left px-4 py-3 rounded-xl transition-colors flex items-center gap-3 text-red-600 hover:bg-red-50"
+                        className="w-full py-2 px-4 rounded-lg border border-gray-200 bg-white text-gray-600 text-sm font-semibold hover:bg-red-50 hover:text-red-600 hover:border-red-100 transition-all shadow-sm"
                     >
-                        <span>🚪</span>
                         로그아웃
                     </button>
                 </div>
@@ -144,7 +163,7 @@ function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateCl
             {/* 모바일 메뉴 버튼 */}
             <button
                 onClick={() => setIsSidebarOpen(!isSidebarOpen)}
-                className="fixed bottom-4 left-4 z-40 lg:hidden w-12 h-12 bg-blue-500 text-white rounded-full shadow-lg flex items-center justify-center"
+                className="fixed bottom-6 left-6 z-40 lg:hidden w-14 h-14 bg-primary text-white rounded-full shadow-lg shadow-indigo-500/30 flex items-center justify-center hover:scale-105 transition-transform"
             >
                 <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
@@ -152,8 +171,10 @@ function Layout({ user, onLogout, children, activeMenu, onMenuChange, onCreateCl
             </button>
 
             {/* 메인 콘텐츠 */}
-            <main className="flex-1 p-6 bg-[#FFFDF5] lg:ml-0">
-                {children}
+            <main className="flex-1 p-4 lg:p-8 overflow-y-auto w-full lg:w-auto">
+                <div className="max-w-7xl mx-auto h-full">
+                    {children}
+                </div>
             </main>
         </div>
     )

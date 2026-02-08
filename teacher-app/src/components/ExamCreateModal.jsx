@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from 'react'
+import { useState, useCallback, useRef, useEffect } from 'react'
 import { useToast } from './Toast'
 
 /**
@@ -29,7 +29,7 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
 
     // 영역/단원 목록 (Step 2에서 정의)
     const [categories, setCategories] = useState(['1단원', '2단원', '3단원'])
-    const [newCategory, setNewCategory] = useState('')
+    const [showAddCategory, setShowAddCategory] = useState(false)
 
     // 정답 입력 ref 배열
     const answerRefs = useRef([])
@@ -37,13 +37,6 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
     // 원문자 ↔ 숫자 변환
     const circleToNumber = { '①': 1, '②': 2, '③': 3, '④': 4, '⑤': 5, '❶': 1, '❷': 2, '❸': 3, '❹': 4, '❺': 5 }
     const numberToCircle = ['', '①', '②', '③', '④', '⑤']
-
-    // 한글 원문자 → 자모 매핑 (㉠㉡㉢... → ㄱㄴㄷ...)
-    const circleJamoMap = {
-        '㉠': 'ㄱ', '㉡': 'ㄴ', '㉢': 'ㄷ', '㉣': 'ㄹ', '㉤': 'ㅁ',
-        '㉥': 'ㅂ', '㉦': 'ㅅ', '㉧': 'ㅇ', '㉨': 'ㅈ', '㉩': 'ㅊ',
-        '㉪': 'ㅋ', '㉫': 'ㅌ', '㉬': 'ㅍ', '㉭': 'ㅎ'
-    }
 
     // 정답 문자열 → {type, answers} 파싱 (단순화 버전)
     // 규칙: 순수 숫자(1-5) / 원문자(①-⑤) / O,X만 해당 유형, 그 외는 모두 단답형
@@ -107,10 +100,6 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
                 correctAnswers: q.correctAnswers || [],
                 answerLogic: q.answerLogic || 'and',
                 points: q.points || 5,
-                category: q.category || '',
-                explanation: q.explanation || '',
-                hasSubQuestions: q.hasSubQuestions || false,
-                subQuestions: q.subQuestions || [],
                 category: q.category || '',
                 explanation: q.explanation || '',
                 ignoreSpace: q.ignoreSpace !== false, // 기본값 true
@@ -537,58 +526,80 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
     }
 
     return (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-            <div className="bg-white rounded-2xl w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in zoom-in duration-200">
+            <div className="bg-white rounded-3xl w-full max-w-6xl max-h-[90vh] overflow-hidden flex flex-col shadow-2xl border border-gray-100">
                 {/* 헤더 */}
-                <div className="p-4 border-b bg-gradient-to-r from-blue-500 to-blue-600">
+                <div className="p-5 border-b border-gray-100 bg-white shadow-sm flex-shrink-0">
                     <div className="flex items-center justify-between">
-                        <h2 className="text-lg font-bold text-white">
-                            {step === 1 ? '📝 새 시험 만들기' : isEditMode ? `✏️ ${examSubject} | ${examTitle} 수정` : `${examSubject} | ${examTitle}`}
-                        </h2>
-                        <div className="flex items-center gap-2 text-sm">
-                            <span className={`px-3 py-1 rounded-full ${step === 1 ? 'bg-white text-blue-600' : 'bg-blue-400 text-white'}`}>
-                                1. 기본 설정
-                            </span>
-                            <span className={`px-3 py-1 rounded-full ${step === 2 ? 'bg-white text-blue-600' : 'bg-blue-400 text-white'}`}>
-                                2. 정답 입력
-                            </span>
+                        <div>
+                            <h2 className="text-2xl font-extrabold text-gray-900 tracking-tight flex items-center gap-3">
+                                {step === 1 ? (
+                                    <>
+                                        <span className="bg-primary/10 text-primary p-2 rounded-xl">📝</span>
+                                        새 시험 만들기
+                                    </>
+                                ) : (
+                                    <>
+                                        <span className="bg-primary/10 text-primary p-2 rounded-xl">✏️</span>
+                                        {isEditMode ? `${examSubject} | ${examTitle} 수정` : `${examSubject} • ${examTitle}`}
+                                    </>
+                                )}
+                            </h2>
+                        </div>
+                        <div className="flex items-center gap-2">
+                            {/* 단계 표시기 */}
+                            <div className="flex p-1 bg-gray-100 rounded-xl mr-4">
+                                <span className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${step === 1 ? 'bg-white text-primary shadow-sm' : 'text-gray-400'}`}>
+                                    1. 기본 설정
+                                </span>
+                                <span className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${step === 2 ? 'bg-white text-primary shadow-sm' : 'text-gray-400'}`}>
+                                    2. 문항 입력
+                                </span>
+                            </div>
+
+                            <button
+                                onClick={onClose}
+                                className="p-2 text-gray-400 hover:bg-gray-100 hover:text-gray-700 rounded-xl transition-colors"
+                            >
+                                <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
                         </div>
                     </div>
                 </div>
 
-                {/* 컨텐츠 */}
-                <div className="flex-1 overflow-hidden flex">
+                {/* 컨텐츠 영역 */}
+                <div className="flex-1 overflow-hidden flex bg-gray-50/50">
                     {step === 1 ? (
                         /* Step 1: 기본 설정 */
-                        <div className="flex-1 overflow-auto p-6">
-                            <div className="space-y-6 max-w-xl mx-auto">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">과목 *</label>
+                        <div className="flex-1 overflow-auto p-8">
+                            <div className="max-w-2xl mx-auto space-y-8 bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-bold text-gray-700 ml-1">과목</label>
                                         <input
                                             type="text"
                                             value={examSubject}
                                             onChange={(e) => setExamSubject(e.target.value)}
-                                            placeholder="예: 수학"
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                                            placeholder="예: 수학, 영어"
+                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-medium"
                                         />
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">시험명 *</label>
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-bold text-gray-700 ml-1">시험명</label>
                                         <input
                                             type="text"
                                             value={examTitle}
                                             onChange={(e) => setExamTitle(e.target.value)}
                                             placeholder="예: 1학기 중간고사"
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
+                                            className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-medium"
                                         />
                                     </div>
                                 </div>
 
                                 {/* 기본 문제 유형 */}
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-2">기본 문제 유형</label>
-                                    <div className="grid grid-cols-4 gap-2">
+                                <div className="space-y-3">
+                                    <label className="block text-sm font-bold text-gray-700 ml-1">기본 문제 유형</label>
+                                    <div className="grid grid-cols-4 gap-3">
                                         {[
                                             { value: 'choice5', label: '5지선다', icon: '⑤' },
                                             { value: 'choice4', label: '4지선다', icon: '④' },
@@ -598,526 +609,490 @@ function ExamCreateModal({ classData, onClose, onSubmit, editData = null }) {
                                             <button
                                                 key={type.value}
                                                 onClick={() => setDefaultType(type.value)}
-                                                className={`p-3 border-2 rounded-xl text-center transition-all ${defaultType === type.value
-                                                    ? 'border-blue-500 bg-blue-50'
-                                                    : 'border-gray-200 hover:border-gray-300'
+                                                className={`p-4 border-2 rounded-2xl text-center transition-all duration-200 flex flex-col items-center gap-2 ${defaultType === type.value
+                                                    ? 'border-primary bg-primary/5 text-primary shadow-sm ring-2 ring-primary/20'
+                                                    : 'border-gray-100 bg-gray-50 text-gray-500 hover:bg-white hover:border-gray-300'
                                                     }`}
                                             >
-                                                <div className="text-xl">{type.icon}</div>
-                                                <div className="text-xs font-medium">{type.label}</div>
+                                                <div className="text-2xl font-bold">{type.icon}</div>
+                                                <div className="text-sm font-semibold">{type.label}</div>
                                             </button>
                                         ))}
                                     </div>
-                                    <p className="text-xs text-gray-500 mt-2">
-                                        💡 숫자 정답 (1, 2, 3...)을 입력하면 이 유형으로 해석됩니다
+                                    <p className="text-xs text-gray-500 ml-1 flex items-center gap-1">
+                                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+                                        숫자 정답(1~5)을 입력하면 자동으로 인식됩니다.
                                     </p>
                                 </div>
 
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">문항 수</label>
-                                        <input
-                                            type="number"
-                                            value={questionCount}
-                                            onChange={(e) => setQuestionCount(parseInt(e.target.value) || 1)}
-                                            min="1"
-                                            max="100"
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                        />
+                                <div className="grid grid-cols-2 gap-6">
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-bold text-gray-700 ml-1">문항 수</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={questionCount}
+                                                onChange={(e) => setQuestionCount(parseInt(e.target.value) || 1)}
+                                                min="1"
+                                                max="100"
+                                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-medium font-mono"
+                                            />
+                                            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400 text-sm font-bold">문항</div>
+                                        </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-2">제한시간 (분, 0=무제한)</label>
-                                        <input
-                                            type="number"
-                                            value={timeLimit}
-                                            onChange={(e) => setTimeLimit(parseInt(e.target.value) || 0)}
-                                            min="0"
-                                            className="w-full px-4 py-3 border-2 border-gray-200 rounded-xl focus:border-blue-500 focus:outline-none"
-                                        />
+                                    <div className="space-y-2">
+                                        <label className="block text-sm font-bold text-gray-700 ml-1">제한시간</label>
+                                        <div className="relative">
+                                            <input
+                                                type="number"
+                                                value={timeLimit}
+                                                onChange={(e) => setTimeLimit(parseInt(e.target.value) || 0)}
+                                                min="0"
+                                                className="w-full px-4 py-3 bg-gray-50 border border-gray-200 rounded-xl focus:border-primary focus:ring-2 focus:ring-primary/20 focus:outline-none transition-all font-medium font-mono"
+                                            />
+                                            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none text-gray-400 text-sm font-bold">분 (0=무제한)</div>
+                                        </div>
                                     </div>
                                 </div>
 
-                                <label className="flex items-center gap-2 cursor-pointer">
+                                <label className="flex items-center gap-3 p-4 bg-gray-50 border border-gray-200 rounded-2xl cursor-pointer hover:bg-gray-100 transition-colors">
                                     <input
                                         type="checkbox"
                                         checked={allowRetake}
                                         onChange={(e) => setAllowRetake(e.target.checked)}
-                                        className="w-5 h-5 text-blue-500 rounded"
+                                        className="w-5 h-5 text-primary rounded border-gray-300 focus:ring-primary"
                                     />
-                                    <span className="text-gray-700">제출 후 재응시 허용</span>
+                                    <span className="font-bold text-gray-700">제출 후 바로 재응시 허용</span>
                                 </label>
 
-                                <div className="bg-purple-50 p-4 rounded-xl border-2 border-dashed border-purple-300">
-                                    <p className="text-purple-800 font-medium">💡 이원분류표 붙여넣기 지원</p>
-                                    <p className="text-sm text-purple-600 mt-1">
-                                        다음 단계에서 정답 열에 <strong>Ctrl+V</strong>로 붙여넣으면 자동으로 채워집니다.
-                                    </p>
+                                <div className="pt-4 flex justify-end">
+                                    <button
+                                        onClick={handleGenerateQuestions}
+                                        className="px-8 py-4 bg-primary text-white rounded-xl font-bold text-lg hover:bg-indigo-700 transition-all shadow-lg hover:shadow-xl hover:-translate-y-0.5"
+                                    >
+                                        다음 단계로 ➔
+                                    </button>
                                 </div>
                             </div>
                         </div>
                     ) : (
                         /* Step 2: 표 + 고급 설정 패널 */
                         <>
-                            {/* 좌측: 간소화된 표 */}
-                            <div className={`flex-1 overflow-auto p-4 ${showAdvanced ? 'border-r' : ''}`}>
-                                {/* 요약 */}
-                                <div className="bg-gray-100 p-3 rounded-xl flex items-center justify-between sticky top-0 z-10 mb-3">
-                                    <div className="flex items-center gap-4">
-                                        <span className="font-medium">총 {questions.length}문항</span>
-                                        {getUnansweredCount() > 0 && (
-                                            <span className="text-red-600 text-sm">⚠️ 미입력: {getUnansweredCount()}개</span>
-                                        )}
-                                    </div>
-                                    <div className="flex items-center gap-3">
-                                        <span className="text-sm">
-                                            자동: <strong>{getAutoGradablePoints()}점</strong>
-                                            {getEssayPoints() > 0 && <> | 서술: <strong>{getEssayPoints()}점</strong></>}
-                                            | 총 <strong className="text-blue-600">{getTotalPoints()}점</strong>
+                            {/* 좌측: 문항 목록 */}
+                            <div className="flex-1 flex flex-col h-full overflow-hidden relative">
+                                {/* 요약 바 */}
+                                <div className="bg-white border-b px-6 py-3 flex items-center justify-between shadow-sm z-10">
+                                    <div className="flex items-center gap-6">
+                                        <span className="font-bold text-gray-700 flex items-center gap-2">
+                                            <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                                            총 {questions.length}문항
                                         </span>
-                                        <button
-                                            onClick={() => setShowAdvanced(!showAdvanced)}
-                                            className={`px-3 py-1 rounded-lg text-sm font-medium transition-colors ${showAdvanced
-                                                ? 'bg-blue-100 text-blue-700'
-                                                : 'bg-gray-200 text-gray-600'
-                                                }`}
-                                        >
-                                            ⚙️ 고급 {showAdvanced ? '▶' : '◀'}
-                                        </button>
+                                        {getUnansweredCount() > 0 && (
+                                            <span className="px-3 py-1 bg-rose-50 text-rose-600 text-sm font-bold rounded-lg border border-rose-100 flex items-center gap-2 animate-pulse">
+                                                ⚠️ 미입력 {getUnansweredCount()}개
+                                            </span>
+                                        )}
+                                        <div className="h-4 w-px bg-gray-200"></div>
+                                        <span className="text-sm font-medium text-gray-500">
+                                            자동 <span className="text-gray-900 font-bold">{getAutoGradablePoints()}점</span>
+                                            {getEssayPoints() > 0 && <span className="ml-2">서술 <span className="text-gray-900 font-bold">{getEssayPoints()}점</span></span>}
+                                            <span className="mx-2">/</span>
+                                            총 <span className="text-primary font-extrabold text-base">{getTotalPoints()}점</span>
+                                        </span>
                                     </div>
+
+                                    <button
+                                        onClick={() => setShowAdvanced(!showAdvanced)}
+                                        className={`px-4 py-2 rounded-xl text-sm font-bold transition-all flex items-center gap-2 ${showAdvanced
+                                            ? 'bg-indigo-50 text-indigo-700 border border-indigo-100'
+                                            : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'
+                                            }`}
+                                    >
+                                        <span>⚙️ 고급 설정</span>
+                                        <svg className={`w-4 h-4 transition-transform ${showAdvanced ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" /></svg>
+                                    </button>
                                 </div>
 
-                                <p className="text-xs text-gray-500 mb-2">
-                                    💡 <strong>Ctrl+V</strong> 붙여넣기 | <strong>Tab/↓↑</strong>로 이동 | 행 클릭 → 고급 설정
-                                </p>
-
-                                {/* 간소화된 표 */}
-
+                                {/* 문항 리스트 테이블 */}
                                 <div
-                                    className="overflow-auto border rounded-xl"
+                                    className="flex-1 overflow-y-auto min-h-0 p-6"
                                     onPaste={handleTablePaste}
                                 >
-                                    <table className="w-full text-sm border-collapse">
-                                        <thead>
-                                            <tr className="bg-gray-50">
-                                                <th className="border-b px-3 py-2 text-center w-12 font-semibold">No</th>
-                                                <th className="border-b px-3 py-2 text-center w-24 font-semibold">유형</th>
-                                                <th className="border-b px-3 py-2 text-center font-semibold">정답</th>
-                                                <th className="border-b px-3 py-2 text-center w-10"></th>
-                                            </tr>
-                                        </thead>
-                                        <tbody>
-                                            {questions.map((q, idx) => (
-                                                <tr
-                                                    key={q.num}
-                                                    className={`
-                                                        hover:bg-blue-50 transition-colors cursor-pointer
-                                                        ${selectedRow === idx ? 'bg-blue-100' : ''}
-                                                        ${q.type !== 'essay' && !q.hasSubQuestions && (!q.correctAnswers || q.correctAnswers.length === 0) ? 'bg-red-50' : ''}
-                                                    `}
-                                                    onClick={() => setSelectedRow(idx)}
-                                                >
-                                                    <td className="border-b px-3 py-2 text-center font-medium text-gray-600">
-                                                        {q.num}
-                                                    </td>
-                                                    <td className="border-b px-2 py-1">
-                                                        <select
-                                                            value={q.type}
-                                                            onChange={(e) => { e.stopPropagation(); handleTypeChange(idx, e.target.value) }}
-                                                            onClick={(e) => { e.stopPropagation(); setSelectedRow(idx) }}
-                                                            onFocus={() => setSelectedRow(idx)}
-                                                            className="w-full px-2 py-1 border border-gray-200 rounded focus:border-blue-500 focus:outline-none text-xs"
-                                                        >
-                                                            <option value="choice5">5지선다</option>
-                                                            <option value="choice4">4지선다</option>
-                                                            <option value="ox">O/X</option>
-                                                            <option value="short">단답형</option>
-                                                            <option value="essay">서술형</option>
-                                                        </select>
-                                                    </td>
-                                                    <td className="border-b px-2 py-1">
-                                                        {q.hasSubQuestions ? (
-                                                            <span className="text-purple-600 text-xs font-medium">
-                                                                📋 소문항 {q.subQuestions.length}개
-                                                            </span>
-                                                        ) : q.type === 'essay' ? (
-                                                            <span className="text-gray-400 text-xs">(서술형)</span>
-                                                        ) : (
-                                                            <input
-                                                                ref={(el) => answerRefs.current[idx] = el}
-                                                                type="text"
-                                                                value={q.displayAnswer || formatAnswer(q)}
-                                                                onChange={(e) => { e.stopPropagation(); handleAnswerChange(idx, e.target.value) }}
-                                                                onClick={(e) => { e.stopPropagation(); setSelectedRow(idx) }}
-                                                                onFocus={() => setSelectedRow(idx)}
-                                                                onKeyDown={(e) => handleKeyDown(e, idx)}
-                                                                placeholder="③, 1, O, 서울..."
-                                                                className="w-full px-2 py-1 border border-gray-200 rounded focus:border-blue-500 focus:outline-none"
-                                                            />
-                                                        )}
-                                                    </td>
-                                                    <td className="border-b px-1 py-1 text-center">
-                                                        <button
-                                                            onClick={(e) => { e.stopPropagation(); removeQuestion(idx) }}
-                                                            className="text-red-400 hover:text-red-600 text-lg"
-                                                            title="삭제"
-                                                        >
-                                                            ×
-                                                        </button>
-                                                    </td>
+                                    <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                        <table className="w-full text-sm">
+                                            <thead className="bg-gray-50/80 sticky top-0 z-10 backdrop-blur-sm">
+                                                <tr>
+                                                    <th className="px-4 py-3 text-center w-16 font-bold text-gray-500 border-b">No</th>
+                                                    <th className="px-4 py-3 text-center w-32 font-bold text-gray-500 border-b">유형</th>
+                                                    <th className="px-4 py-3 text-center font-bold text-gray-500 border-b">정답</th>
+                                                    <th className="px-4 py-3 text-center w-16 border-b"></th>
                                                 </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-50">
+                                                {questions.map((q, idx) => (
+                                                    <tr
+                                                        key={q.num}
+                                                        className={`
+                                                            group transition-colors cursor-pointer
+                                                            ${selectedRow === idx ? 'bg-indigo-50/60' : 'hover:bg-gray-50'}
+                                                            ${q.type !== 'essay' && !q.hasSubQuestions && (!q.correctAnswers || q.correctAnswers.length === 0) ? 'bg-rose-50/30' : ''}
+                                                        `}
+                                                        onClick={() => setSelectedRow(idx)}
+                                                    >
+                                                        <td className="px-4 py-3 text-center">
+                                                            <div className={`w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm mx-auto ${selectedRow === idx ? 'bg-white text-primary shadow-sm' : 'text-gray-500'}`}>
+                                                                {q.num}
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            <div className="relative">
+                                                                <select
+                                                                    value={q.type}
+                                                                    onChange={(e) => { e.stopPropagation(); handleTypeChange(idx, e.target.value) }}
+                                                                    onClick={(e) => { e.stopPropagation(); setSelectedRow(idx) }}
+                                                                    onFocus={() => setSelectedRow(idx)}
+                                                                    className={`w-full appearance-none pl-3 pr-8 py-2 border rounded-xl focus:ring-2 focus:ring-primary/20 focus:outline-none text-xs font-bold transition-shadow cursor-pointer ${selectedRow === idx ? 'border-primary/30 bg-white shadow-sm' : 'border-gray-200 bg-gray-50'
+                                                                        }`}
+                                                                >
+                                                                    <option value="choice5">5지선다</option>
+                                                                    <option value="choice4">4지선다</option>
+                                                                    <option value="ox">O/X</option>
+                                                                    <option value="short">단답형</option>
+                                                                    <option value="essay">서술형</option>
+                                                                </select>
+                                                                <div className="absolute inset-y-0 right-2 flex items-center pointer-events-none text-gray-400">
+                                                                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" /></svg>
+                                                                </div>
+                                                            </div>
+                                                        </td>
+                                                        <td className="px-4 py-3">
+                                                            {q.hasSubQuestions ? (
+                                                                <div className="flex items-center justify-center gap-2 py-1 px-3 bg-purple-50 text-purple-700 rounded-lg text-xs font-bold border border-purple-100">
+                                                                    <span>📋</span>
+                                                                    소문항 {q.subQuestions.length}개 설정됨
+                                                                </div>
+                                                            ) : q.type === 'essay' ? (
+                                                                <div className="text-center text-gray-400 text-xs font-medium py-1">(채점 기준 등 입력 시 고급설정 이용)</div>
+                                                            ) : (
+                                                                <input
+                                                                    ref={(el) => answerRefs.current[idx] = el}
+                                                                    type="text"
+                                                                    value={q.displayAnswer || formatAnswer(q)}
+                                                                    onChange={(e) => { e.stopPropagation(); handleAnswerChange(idx, e.target.value) }}
+                                                                    onClick={(e) => { e.stopPropagation(); setSelectedRow(idx) }}
+                                                                    onFocus={() => setSelectedRow(idx)}
+                                                                    onKeyDown={(e) => handleKeyDown(e, idx)}
+                                                                    placeholder="정답 입력 (예: 3, O, 단어)..."
+                                                                    className={`w-full px-4 py-2 border rounded-xl focus:ring-2 focus:ring-primary/20 focus:outline-none text-center font-bold tracking-wide transition-shadow ${selectedRow === idx ? 'border-primary/50 shadow-sm' : 'border-gray-200'
+                                                                        }`}
+                                                                />
+                                                            )}
+                                                        </td>
+                                                        <td className="px-4 py-3 text-center">
+                                                            <button
+                                                                onClick={(e) => { e.stopPropagation(); removeQuestion(idx) }}
+                                                                className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-all"
+                                                                title="문항 삭제"
+                                                            >
+                                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                                                            </button>
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+
+                                    <div className="mt-4 flex justify-center">
+                                        <button
+                                            onClick={addQuestion}
+                                            className="px-6 py-2.5 bg-white border border-gray-200 text-gray-600 rounded-xl font-bold hover:bg-gray-50 hover:border-gray-300 transition-all shadow-sm flex items-center gap-2"
+                                        >
+                                            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" /></svg>
+                                            문항 추가하기
+                                        </button>
+                                    </div>
+                                    <div className="h-20"></div> {/* 하단 여백 */}
                                 </div>
 
-                                {/* 문항 추가 */}
-                                <div className="mt-3">
+                                {/* 하단 액션 바 */}
+                                <div className="absolute bottom-0 left-0 right-0 p-4 bg-white border-t flex justify-between items-center z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                                     <button
-                                        onClick={addQuestion}
-                                        className="text-sm text-blue-600 hover:text-blue-800 px-3 py-1 bg-blue-50 rounded-lg"
+                                        onClick={() => setStep(1)}
+                                        className="px-5 py-2.5 text-gray-500 font-bold hover:bg-gray-100 rounded-xl transition-colors"
                                     >
-                                        + 문항 추가
+                                        ← 이전 단계
+                                    </button>
+                                    <button
+                                        onClick={handleCreateExam}
+                                        disabled={creating}
+                                        className="px-8 py-3 bg-gradient-to-r from-primary to-indigo-600 text-white rounded-xl font-bold text-lg hover:shadow-lg hover:-translate-y-0.5 transition-all disabled:opacity-50 flex items-center gap-2"
+                                    >
+                                        {creating ? (
+                                            <>
+                                                <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                                                저장 중...
+                                            </>
+                                        ) : (
+                                            <>
+                                                {isEditMode ? '수정 완료' : '시험 생성하기'}
+                                                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" /></svg>
+                                            </>
+                                        )}
                                     </button>
                                 </div>
                             </div>
 
-                            {/* 우측: 고급 설정 패널 (토글) */}
+                            {/* 우측: 고급 설정 패널 */}
                             {showAdvanced && (
-                                <div className="w-72 bg-gray-50 p-4 overflow-auto">
-                                    <h3 className="font-bold text-gray-700 mb-3">⚙️ 고급 설정</h3>
+                                <div className="w-80 bg-white border-l border-gray-100 flex flex-col shadow-xl z-20">
+                                    <div className="p-4 border-b bg-gray-50/50">
+                                        <h3 className="font-bold text-gray-800 flex items-center gap-2">
+                                            <span>⚙️</span> 고급 설정
+                                        </h3>
+                                    </div>
 
-                                    {selectedQuestion ? (
-                                        <div className="space-y-4">
-                                            {/* 선택된 문항 정보 */}
-                                            <div className="bg-white p-3 rounded-lg border">
-                                                <div className="font-bold text-blue-600 mb-1">
-                                                    {selectedQuestion.num}번 문항
-                                                </div>
-                                                <div className="text-xs text-gray-500">
-                                                    {typeLabels[selectedQuestion.type]}
-                                                </div>
-                                            </div>
-
-                                            {/* 배점 */}
-                                            <div className="bg-white p-3 rounded-lg border">
-                                                <label className="block text-sm font-medium text-gray-700 mb-1">💰 배점</label>
-                                                <div className="flex items-center gap-2">
-                                                    <input
-                                                        type="number"
-                                                        value={selectedQuestion.points}
-                                                        onChange={(e) => handlePointsChange(selectedRow, e.target.value)}
-                                                        min="0"
-                                                        max="100"
-                                                        className="w-20 px-2 py-1 border rounded text-center"
-                                                    />
-                                                    <span className="text-gray-500">점</span>
-                                                </div>
-                                            </div>
-
-                                            {/* 영역/단원 드롭다운 + 관리 */}
-                                            <div className="bg-amber-50 p-3 rounded-lg border border-amber-200">
-                                                <label className="block text-sm font-medium text-amber-700 mb-1">📂 영역/단원</label>
-                                                <select
-                                                    value={selectedQuestion.category}
-                                                    onChange={(e) => handleCategoryChange(selectedRow, e.target.value)}
-                                                    className="w-full px-2 py-1 border border-amber-300 rounded text-sm mb-2"
-                                                >
-                                                    <option value="">선택 안함</option>
-                                                    {categories.map((cat, idx) => (
-                                                        <option key={idx} value={cat}>{cat}</option>
-                                                    ))}
-                                                </select>
-
-                                                {/* 영역 목록 태그 */}
-                                                <div className="flex flex-wrap gap-1 mb-2">
-                                                    {categories.map((cat, idx) => (
-                                                        <span key={idx} className="inline-flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded text-xs">
-                                                            {cat}
-                                                            <button
-                                                                onClick={() => setCategories(prev => prev.filter((_, i) => i !== idx))}
-                                                                className="text-amber-400 hover:text-amber-600 ml-0.5"
-                                                            >×</button>
-                                                        </span>
-                                                    ))}
-                                                </div>
-
-                                                {/* 새 영역 추가 */}
-                                                <div className="flex items-center gap-1">
-                                                    <input
-                                                        type="text"
-                                                        value={newCategory}
-                                                        onChange={(e) => setNewCategory(e.target.value)}
-                                                        onKeyDown={(e) => {
-                                                            if (e.key === 'Enter' && newCategory.trim()) {
-                                                                e.preventDefault()
-                                                                if (!categories.includes(newCategory.trim())) {
-                                                                    setCategories(prev => [...prev, newCategory.trim()])
-                                                                }
-                                                                setNewCategory('')
-                                                            }
-                                                        }}
-                                                        placeholder="새 영역 추가..."
-                                                        className="flex-1 px-2 py-1 border border-amber-300 rounded text-xs focus:outline-none focus:border-amber-500"
-                                                    />
-                                                    <button
-                                                        onClick={() => {
-                                                            if (newCategory.trim() && !categories.includes(newCategory.trim())) {
-                                                                setCategories(prev => [...prev, newCategory.trim()])
-                                                                setNewCategory('')
-                                                            }
-                                                        }}
-                                                        className="px-2 py-1 bg-amber-200 text-amber-700 rounded text-xs hover:bg-amber-300"
-                                                    >+</button>
-                                                </div>
-                                            </div>
-
-
-                                            {/* 소문항 설정 */}
-                                            <div className="bg-purple-50 p-3 rounded-lg border border-purple-200">
-                                                <label className="flex items-center gap-2 cursor-pointer mb-2">
-                                                    <input
-                                                        type="checkbox"
-                                                        checked={selectedQuestion.hasSubQuestions}
-                                                        onChange={() => handleSubQuestionToggle(selectedRow)}
-                                                        className="w-4 h-4"
-                                                    />
-                                                    <span className="font-medium text-purple-700 text-sm">📋 소문항 있음</span>
-                                                </label>
-
-                                                {selectedQuestion.hasSubQuestions && (
-                                                    <div className="space-y-2 mt-2">
-                                                        {selectedQuestion.subQuestions.map((sub, subIdx) => (
-                                                            <div key={subIdx} className="bg-white p-2 rounded border border-purple-200">
-                                                                <div className="flex items-center gap-2 mb-1">
-                                                                    <span className="text-purple-600 font-bold text-sm">({sub.subNum})</span>
-                                                                    <input
-                                                                        type="text"
-                                                                        value={sub.displayAnswer || sub.correctAnswers?.join(', ') || ''}
-                                                                        onChange={(e) => handleSubAnswerChange(selectedRow, subIdx, e.target.value)}
-                                                                        placeholder="정답 (콤마로 복수정답)"
-                                                                        className="flex-1 px-2 py-1 border rounded text-sm min-w-0"
-                                                                    />
-                                                                </div>
-                                                                <div className="flex items-center justify-between pl-6">
-                                                                    <div className="flex items-center gap-1">
-                                                                        <span className="text-xs text-gray-500">배점:</span>
-                                                                        <input
-                                                                            type="number"
-                                                                            value={sub.subPoints || 0}
-                                                                            onChange={(e) => handleSubPointsChange(selectedRow, subIdx, e.target.value)}
-                                                                            className="w-12 px-1 py-0.5 border rounded text-sm text-center"
-                                                                            min="0"
-                                                                        />
-                                                                        <span className="text-xs text-gray-500">점</span>
-                                                                    </div>
-                                                                    <button
-                                                                        onClick={() => handleRemoveSubQuestion(selectedRow, subIdx)}
-                                                                        className="text-xs text-red-400 hover:text-red-600"
-                                                                    >
-                                                                        삭제
-                                                                    </button>
-                                                                </div>
-                                                            </div>
-                                                        ))}
-                                                        <div className="flex items-center justify-between">
-                                                            <button
-                                                                onClick={() => handleAddSubQuestion(selectedRow)}
-                                                                className="text-xs text-purple-600 hover:text-purple-800"
-                                                            >
-                                                                + 소문항 추가
-                                                            </button>
-                                                            <span className="text-xs text-purple-500">
-                                                                배점 합계: {selectedQuestion.subQuestions.reduce((sum, s) => sum + (s.subPoints || 0), 0)}점
-                                                            </span>
-                                                        </div>
+                                    <div className="flex-1 overflow-y-auto p-5 space-y-6">
+                                        {selectedQuestion ? (
+                                            <>
+                                                {/* 선택된 문항 헤더 */}
+                                                <div className="bg-gradient-to-br from-indigo-50 to-white p-4 rounded-2xl border border-indigo-100 shadow-sm">
+                                                    <div className="flex justify-between items-start mb-2">
+                                                        <span className="text-2xl font-black text-primary">Q{selectedQuestion.num}</span>
+                                                        <span className="px-2 py-1 bg-white rounded-lg text-xs font-bold text-gray-500 border border-gray-100 shadow-sm">{typeLabels[selectedQuestion.type]}</span>
                                                     </div>
-                                                )}
-                                            </div>
-
-                                            {/* 단답형 띄어쓰기 옵션 */}
-                                            {selectedQuestion.type === 'short' && (
-                                                <div className="bg-blue-50 p-3 rounded-lg border border-blue-200 mb-3">
-                                                    <label className="flex items-center gap-2 cursor-pointer">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={selectedQuestion.ignoreSpace !== false}
-                                                            onChange={() => handleIgnoreSpaceChange(selectedRow)}
-                                                            className="w-4 h-4 text-blue-600 rounded focus:ring-blue-500"
-                                                        />
-                                                        <span className="text-sm text-blue-800 font-medium">띄어쓰기 무시하고 채점 (권장)</span>
-                                                    </label>
-                                                    <p className="text-xs text-blue-600 mt-1 ml-6">
-                                                        "대한 서울"과 "대한서울"을 같은 답으로 처리합니다.
-                                                    </p>
+                                                    <p className="text-xs text-indigo-400 font-medium">현재 선택된 문항입니다</p>
                                                 </div>
-                                            )}
 
-                                            {/* 정답 관리 (객관식/단답형) */}
-                                            {selectedQuestion.type !== 'essay' && !selectedQuestion.hasSubQuestions && (
-                                                <div className="bg-orange-50 p-3 rounded-lg border border-orange-200 space-y-3">
-                                                    <div className="font-medium text-orange-700 text-sm">🎯 정답 관리</div>
-
-                                                    {/* 객관식/OX 정답 선택 UI (토글 버튼) */}
-                                                    {(selectedQuestion.type.startsWith('choice') || selectedQuestion.type === 'ox') && (
-                                                        <div className="flex gap-2 mb-2">
-                                                            {selectedQuestion.type === 'ox' ? (
-                                                                ['O', 'X'].map(opt => (
-                                                                    <button
-                                                                        key={opt}
-                                                                        onClick={() => toggleChoiceAnswer(selectedRow, opt)}
-                                                                        className={`px-4 py-1.5 rounded text-sm font-bold border ${(selectedQuestion.correctAnswers || []).includes(opt)
-                                                                            ? 'bg-orange-500 text-white border-orange-500'
-                                                                            : 'bg-white text-gray-500 border-orange-200 hover:bg-orange-100'
-                                                                            }`}
-                                                                    >
-                                                                        {opt}
-                                                                    </button>
-                                                                ))
-                                                            ) : (
-                                                                // 4지선다 or 5지선다
-                                                                Array.from({ length: selectedQuestion.type === 'choice4' ? 4 : 5 }, (_, i) => i + 1).map(num => (
+                                                {/* 정답 선택 (객관식/OX) */}
+                                                {!selectedQuestion.hasSubQuestions && (
+                                                    <div className="mb-6">
+                                                        <label className="block text-xs font-bold text-gray-500 mb-2">정답 선택 (복수 선택 가능)</label>
+                                                        {(selectedQuestion.type === 'choice5' || selectedQuestion.type === 'choice4') && (
+                                                            <div className="flex gap-2">
+                                                                {[1, 2, 3, 4, 5].slice(0, selectedQuestion.type === 'choice4' ? 4 : 5).map(num => (
                                                                     <button
                                                                         key={num}
                                                                         onClick={() => toggleChoiceAnswer(selectedRow, num)}
-                                                                        className={`w-8 h-8 rounded-full text-sm font-bold flex items-center justify-center border ${(selectedQuestion.correctAnswers || []).includes(num)
-                                                                            ? 'bg-orange-500 text-white border-orange-500' // 선택됨
-                                                                            : 'bg-white text-gray-500 border-orange-200 hover:bg-orange-100' // 선택 안됨
+                                                                        className={`w-10 h-10 rounded-full font-bold text-lg transition-all ${(selectedQuestion.correctAnswers || []).includes(num)
+                                                                            ? 'bg-primary text-white shadow-md transform scale-105'
+                                                                            : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
                                                                             }`}
                                                                     >
                                                                         {num}
                                                                     </button>
-                                                                ))
-                                                            )}
-                                                        </div>
-                                                    )}
-
-                                                    {/* 단답형 정답 추가 입력 */}
-                                                    {selectedQuestion.type === 'short' && (
-                                                        <div className="flex gap-1">
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        {selectedQuestion.type === 'ox' && (
+                                                            <div className="flex gap-2">
+                                                                {['O', 'X'].map(val => (
+                                                                    <button
+                                                                        key={val}
+                                                                        onClick={() => toggleChoiceAnswer(selectedRow, val)}
+                                                                        className={`flex-1 py-2 rounded-xl font-bold text-lg transition-all ${(selectedQuestion.correctAnswers || []).includes(val)
+                                                                            ? 'bg-primary text-white shadow-md'
+                                                                            : 'bg-white text-gray-500 border border-gray-200 hover:bg-gray-50'
+                                                                            }`}
+                                                                    >
+                                                                        {val}
+                                                                    </button>
+                                                                ))}
+                                                            </div>
+                                                        )}
+                                                        {(selectedQuestion.type === 'short') && (
                                                             <input
                                                                 type="text"
-                                                                placeholder="정답 입력 (엔터)"
-                                                                className="flex-1 px-2 py-1 border border-orange-200 rounded text-sm focus:outline-none focus:border-orange-500"
-                                                                onKeyDown={(e) => {
-                                                                    if (e.key === 'Enter') {
-                                                                        e.preventDefault()
-                                                                        handleAddSingleAnswer(selectedRow, e.target.value)
-                                                                        e.target.value = ''
-                                                                    }
-                                                                }}
+                                                                value={selectedQuestion.displayAnswer || ''}
+                                                                onChange={(e) => handleAnswerChange(selectedRow, e.target.value)}
+                                                                placeholder="정답 입력 (콤마로 구분)"
+                                                                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-gray-800 focus:ring-2 focus:ring-primary/20 focus:outline-none"
                                                             />
+                                                        )}
+                                                        {(selectedQuestion.type === 'essay') && (
+                                                            <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded-lg">
+                                                                서술형은 정답을 입력하지 않습니다. 아래 채점 기준에 작성해주세요.
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+
+                                                {/* 소문항 설정 */}
+                                                <div>
+                                                    <label className="flex items-center justify-between p-3 bg-gray-50 rounded-xl cursor-pointer hover:bg-gray-100 transition-colors border border-gray-100">
+                                                        <span className="font-bold text-sm text-gray-700">📋 소문항 사용</span>
+                                                        <div className={`relative w-11 h-6 transition-colors rounded-full ${selectedQuestion.hasSubQuestions ? 'bg-primary' : 'bg-gray-300'}`}>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedQuestion.hasSubQuestions}
+                                                                onChange={() => handleSubQuestionToggle(selectedRow)}
+                                                                className="sr-only"
+                                                            />
+                                                            <div className={`absolute left-0.5 top-0.5 bg-white w-5 h-5 rounded-full transition-transform ${selectedQuestion.hasSubQuestions ? 'translate-x-5' : ''}`} />
+                                                        </div>
+                                                    </label>
+
+                                                    {selectedQuestion.hasSubQuestions && (
+                                                        <div className="mt-3 space-y-3 pl-2 border-l-2 border-primary/20">
+                                                            {selectedQuestion.subQuestions.map((sub, sIdx) => (
+                                                                <div key={sIdx} className="bg-gray-50 p-3 rounded-xl border border-gray-200">
+                                                                    <div className="flex items-center justify-between mb-2">
+                                                                        <span className="text-xs font-bold text-gray-500">({sub.subNum})번 정답 & 배점</span>
+                                                                        <button onClick={() => handleRemoveSubQuestion(selectedRow, sIdx)} className="text-rose-400 hover:text-rose-600">×</button>
+                                                                    </div>
+                                                                    <div className="grid grid-cols-2 gap-2">
+                                                                        <input
+                                                                            type="text"
+                                                                            value={sub.displayAnswer || formatAnswer(sub)} // 임시
+                                                                            onChange={(e) => handleSubAnswerChange(selectedRow, sIdx, e.target.value)}
+                                                                            placeholder="정답"
+                                                                            className="w-full px-2 py-1.5 bg-white border rounded-lg text-xs focus:ring-1 focus:ring-primary"
+                                                                        />
+                                                                        <div className="relative">
+                                                                            <input
+                                                                                type="number"
+                                                                                value={sub.subPoints}
+                                                                                onChange={(e) => handleSubPointsChange(selectedRow, sIdx, e.target.value)}
+                                                                                className="w-full pl-2 pr-6 py-1.5 bg-white border rounded-lg text-xs focus:ring-1 focus:ring-primary"
+                                                                            />
+                                                                            <span className="absolute right-2 top-1.5 text-xs text-gray-400">점</span>
+                                                                        </div>
+                                                                    </div>
+                                                                </div>
+                                                            ))}
                                                             <button
-                                                                className="px-2 py-1 bg-orange-200 text-orange-800 rounded text-xs hover:bg-orange-300"
-                                                                onClick={(e) => {
-                                                                    const input = e.currentTarget.previousElementSibling
-                                                                    handleAddSingleAnswer(selectedRow, input.value)
-                                                                    input.value = ''
-                                                                }}
+                                                                onClick={() => handleAddSubQuestion(selectedRow)}
+                                                                className="w-full py-2 bg-indigo-50 text-indigo-600 rounded-lg text-xs font-bold hover:bg-indigo-100"
                                                             >
-                                                                추가
+                                                                + 소문항 추가
                                                             </button>
                                                         </div>
                                                     )}
+                                                </div>
 
-                                                    {/* 정답 목록 표시 (칩 형태) */}
-                                                    <div className="flex flex-wrap gap-1">
-                                                        {(selectedQuestion.correctAnswers || []).map((ans, idx) => (
-                                                            <span key={idx} className="inline-flex items-center gap-1 px-2 py-1 bg-white border border-orange-200 text-orange-800 rounded text-sm shadow-sm">
-                                                                {selectedQuestion.type === 'short' ? ans : `${ans}번`}
-                                                                <button
-                                                                    onClick={() => handleRemoveAnswer(selectedRow, idx)}
-                                                                    className="text-orange-400 hover:text-red-500 w-4 h-4 flex items-center justify-center rounded-full hover:bg-orange-50"
-                                                                    title="삭제"
-                                                                >
-                                                                    ×
-                                                                </button>
-                                                            </span>
-                                                        ))}
-                                                        {(!selectedQuestion.correctAnswers || selectedQuestion.correctAnswers.length === 0) && (
-                                                            <span className="text-gray-400 text-xs italic">등록된 정답이 없습니다</span>
-                                                        )}
+                                                <hr className="border-gray-100" />
+
+                                                {/* 기본 속성 */}
+                                                <div className="space-y-4">
+                                                    <div className="grid grid-cols-2 gap-3">
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-500 mb-1">배점</label>
+                                                            <input
+                                                                type="number"
+                                                                value={selectedQuestion.points}
+                                                                onChange={(e) => handlePointsChange(selectedRow, e.target.value)}
+                                                                className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl font-bold text-gray-800 focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                                                            />
+                                                        </div>
+                                                        <div>
+                                                            <label className="block text-xs font-bold text-gray-500 mb-1">영역/단원</label>
+                                                            {!showAddCategory ? (
+                                                                <div className="flex gap-2">
+                                                                    <select
+                                                                        value={selectedQuestion.category || ''}
+                                                                        onChange={(e) => {
+                                                                            if (e.target.value === '__NEW__') {
+                                                                                setShowAddCategory(true)
+                                                                            } else {
+                                                                                handleCategoryChange(selectedRow, e.target.value)
+                                                                            }
+                                                                        }}
+                                                                        className="flex-1 px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm focus:ring-2 focus:ring-primary/20 focus:outline-none appearance-none"
+                                                                    >
+                                                                        <option value="">선택 안 함</option>
+                                                                        {categories.map(c => <option key={c} value={c}>{c}</option>)}
+                                                                        <option value="__NEW__" className="font-bold text-primary">+ 직접 입력 (새 항목 추가)</option>
+                                                                    </select>
+                                                                </div>
+                                                            ) : (
+                                                                <div className="flex gap-2">
+                                                                    <input
+                                                                        type="text"
+                                                                        autoFocus
+                                                                        placeholder="새 영역 이름"
+                                                                        onBlur={(e) => {
+                                                                            if (e.target.value.trim()) {
+                                                                                const newVal = e.target.value.trim()
+                                                                                setCategories(prev => [...new Set([...prev, newVal])])
+                                                                                handleCategoryChange(selectedRow, newVal)
+                                                                            }
+                                                                            setShowAddCategory(false)
+                                                                        }}
+                                                                        onKeyDown={(e) => {
+                                                                            if (e.key === 'Enter') {
+                                                                                e.preventDefault()
+                                                                                e.currentTarget.blur()
+                                                                            }
+                                                                        }}
+                                                                        className="flex-1 px-3 py-2 bg-white border border-primary rounded-xl text-sm focus:outline-none"
+                                                                    />
+                                                                    <button
+                                                                        onClick={() => setShowAddCategory(false)}
+                                                                        className="px-3 py-2 bg-gray-100 text-gray-600 rounded-xl text-xs font-bold hover:bg-gray-200"
+                                                                    >
+                                                                        취소
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </div>
                                                     </div>
 
-                                                    {/* 복수정답 로직 */}
-                                                    {selectedQuestion.correctAnswers?.length > 1 && (
-                                                        <div className="pt-2 border-t border-orange-200">
-                                                            <div className="text-xs text-orange-600 mb-1 font-medium">채점 기준:</div>
-                                                            <div className="flex flex-col gap-1">
-                                                                <label className="flex items-center gap-2 cursor-pointer text-sm">
-                                                                    <input
-                                                                        type="radio"
-                                                                        checked={selectedQuestion.answerLogic === 'and'}
-                                                                        onChange={() => handleLogicChange(selectedRow, 'and')}
-                                                                        className="text-orange-600 focus:ring-orange-500"
-                                                                    />
-                                                                    <span className="text-gray-700">
-                                                                        {selectedQuestion.type === 'short'
-                                                                            ? '모두 정답 (AND, 모든 답 포함)'
-                                                                            : '모두 정답 (AND, 모두 선택)'}
-                                                                    </span>
-                                                                </label>
-                                                                <label className="flex items-center gap-2 cursor-pointer text-sm">
-                                                                    <input
-                                                                        type="radio"
-                                                                        checked={selectedQuestion.answerLogic === 'or'}
-                                                                        onChange={() => handleLogicChange(selectedRow, 'or')}
-                                                                        className="text-orange-600 focus:ring-orange-500"
-                                                                    />
-                                                                    <span className="text-gray-700">하나만 맞아도 정답 (OR)</span>
-                                                                </label>
-                                                            </div>
-                                                        </div>
-                                                    )}
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-500 mb-1">해설 / 채점 기준</label>
+                                                        <textarea
+                                                            value={selectedQuestion.explanation || ''}
+                                                            onChange={(e) => handleExplanationChange(selectedRow, e.target.value)}
+                                                            placeholder="학생들에게 보여줄 해설이나 서술형 채점 기준을 입력하세요."
+                                                            className="w-full px-3 py-2 bg-white border border-gray-200 rounded-xl text-sm h-24 resize-none focus:ring-2 focus:ring-primary/20 focus:outline-none"
+                                                        />
+                                                    </div>
                                                 </div>
-                                            )}
 
-                                            {/* 해설 */}
-                                            <div className="bg-white p-3 rounded-lg border">
-                                                <div className="font-medium text-gray-700 text-sm mb-1">📖 해설</div>
-                                                <textarea
-                                                    value={selectedQuestion.explanation || ''}
-                                                    onChange={(e) => handleExplanationChange(selectedRow, e.target.value)}
-                                                    placeholder="해설 입력 (선택)"
-                                                    rows={3}
-                                                    className="w-full px-2 py-1 border rounded text-sm resize-none"
-                                                />
+                                                {/* 문항 특수 옵션 */}
+                                                {!selectedQuestion.hasSubQuestions && selectedQuestion.type !== 'essay' && (
+                                                    <div className="space-y-4 pt-4 border-t border-gray-100">
+                                                        <label className="flex items-center justify-between cursor-pointer">
+                                                            <span className="text-xs font-bold text-gray-600">띄어쓰기 무시 (단답형)</span>
+                                                            <input
+                                                                type="checkbox"
+                                                                checked={selectedQuestion.ignoreSpace}
+                                                                onChange={() => handleIgnoreSpaceChange(selectedRow)}
+                                                                className="rounded text-primary focus:ring-primary"
+                                                            />
+                                                        </label>
+
+                                                        {selectedQuestion.type !== 'short' && (
+                                                            <div>
+                                                                <label className="block text-xs font-bold text-gray-500 mb-2">복수 정답 처리</label>
+                                                                <div className="flex bg-gray-100 p-1 rounded-lg">
+                                                                    <button
+                                                                        onClick={() => handleLogicChange(selectedRow, 'and')}
+                                                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${selectedQuestion.answerLogic === 'and' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}
+                                                                    >
+                                                                        모두 일치 (AND)
+                                                                    </button>
+                                                                    <button
+                                                                        onClick={() => handleLogicChange(selectedRow, 'or')}
+                                                                        className={`flex-1 py-1.5 text-xs font-bold rounded-md transition-all ${selectedQuestion.answerLogic === 'or' ? 'bg-white text-gray-800 shadow-sm' : 'text-gray-500'}`}
+                                                                    >
+                                                                        하나라도 (OR)
+                                                                    </button>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                )}
+                                            </>
+                                        ) : (
+                                            <div className="text-center py-20 text-gray-400">
+                                                <div className="text-4xl mb-2">👆</div>
+                                                <p className="text-sm font-medium">문항을 선택하여<br />상세 설정을 변경하세요</p>
                                             </div>
-                                        </div>
-                                    ) : (
-                                        <div className="text-gray-400 text-sm text-center py-8">
-                                            👈 행을 클릭하면<br />상세 설정이 표시됩니다
-                                        </div>
-                                    )}
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </>
-                    )}
-                </div>
-
-                {/* 푸터 */}
-                <div className="p-4 border-t bg-gray-50 flex justify-between">
-                    <button
-                        onClick={step === 1 ? onClose : () => setStep(1)}
-                        className="px-6 py-2 text-gray-600 hover:text-gray-800"
-                    >
-                        {step === 1 ? '취소' : '← 이전'}
-                    </button>
-
-                    {step === 1 ? (
-                        <button
-                            onClick={handleGenerateQuestions}
-                            className="px-6 py-2 bg-blue-500 text-white rounded-xl font-semibold hover:bg-blue-600"
-                        >
-                            다음 →
-                        </button>
-                    ) : (
-                        <button
-                            onClick={handleCreateExam}
-                            disabled={creating || getUnansweredCount() > 0}
-                            className="px-6 py-2 bg-green-500 text-white rounded-xl font-semibold hover:bg-green-600 disabled:opacity-50"
-                        >
-                            {creating ? (isEditMode ? '저장 중...' : '생성 중...') : (isEditMode ? '시험 수정' : '시험 만들기')}
-                        </button>
                     )}
                 </div>
             </div>

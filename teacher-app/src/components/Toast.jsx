@@ -44,7 +44,7 @@ function ToastContainer({ toasts }) {
     if (toasts.length === 0) return null
 
     return (
-        <div className="fixed bottom-4 right-4 z-50 flex flex-col gap-2">
+        <div className="fixed bottom-6 right-6 z-[60] flex flex-col gap-3 pointer-events-none">
             {toasts.map(toast => (
                 <Toast key={toast.id} message={toast.message} type={toast.type} />
             ))}
@@ -60,32 +60,42 @@ function Toast({ message, type }) {
 
     useEffect(() => {
         // 등장 애니메이션
-        setTimeout(() => setIsVisible(true), 10)
+        const timer = setTimeout(() => setIsVisible(true), 10)
+        return () => clearTimeout(timer)
     }, [])
 
-    const bgColor = {
-        success: 'bg-green-500',
-        error: 'bg-red-500',
-        info: 'bg-blue-500'
-    }[type]
-
-    const icon = {
-        success: '✓',
-        error: '✕',
-        info: 'ℹ'
+    const styles = {
+        success: {
+            bg: 'bg-white border-l-4 border-emerald-500',
+            text: 'text-gray-800',
+            icon: 'text-emerald-500 bg-emerald-50',
+            iconChar: '✓'
+        },
+        error: {
+            bg: 'bg-white border-l-4 border-rose-500',
+            text: 'text-gray-800',
+            icon: 'text-rose-500 bg-rose-50',
+            iconChar: '✕'
+        },
+        info: {
+            bg: 'bg-gray-800 border-l-4 border-gray-600',
+            text: 'text-white',
+            icon: 'text-white bg-gray-700',
+            iconChar: 'ℹ'
+        }
     }[type]
 
     return (
         <div className={`
-            flex items-center gap-3 px-4 py-3 rounded-xl shadow-lg text-white min-w-[280px]
-            transform transition-all duration-300
-            ${bgColor}
+            flex items-center gap-4 px-5 py-4 rounded-xl shadow-[0_10px_40px_-10px_rgba(0,0,0,0.2)] 
+            transform transition-all duration-500 ease-out min-w-[320px] max-w-md pointer-events-auto border border-gray-100/10
+            ${styles.bg}
             ${isVisible ? 'translate-x-0 opacity-100' : 'translate-x-full opacity-0'}
         `}>
-            <span className="w-6 h-6 flex items-center justify-center bg-white/20 rounded-full text-sm font-bold">
-                {icon}
+            <span className={`w-8 h-8 flex-shrink-0 flex items-center justify-center rounded-full text-lg font-bold ${styles.icon}`}>
+                {styles.iconChar}
             </span>
-            <span className="font-medium">{message}</span>
+            <span className={`font-bold text-sm ${styles.text}`}>{message}</span>
         </div>
     )
 }

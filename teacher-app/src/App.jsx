@@ -19,10 +19,10 @@ function App() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#FFF8E7] flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <div className="animate-spin w-12 h-12 border-4 border-blue-500 border-t-transparent rounded-full mx-auto mb-4"></div>
-          <p className="text-gray-600">로딩중...</p>
+          <div className="animate-spin w-12 h-12 border-4 border-indigo-200 border-t-primary rounded-full mx-auto mb-4"></div>
+          <p className="text-gray-500 font-bold animate-pulse">OnMarking 로딩중...</p>
         </div>
       </div>
     )
@@ -34,7 +34,7 @@ function App() {
 
   return (
     <ToastProvider>
-      <div className="min-h-screen bg-[#FFF8E7]">
+      <div className="min-h-screen bg-gray-50 font-sans text-gray-900">
         <Dashboard user={user} onLogout={signOut} />
       </div>
     </ToastProvider>

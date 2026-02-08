@@ -723,6 +723,18 @@ export const toggleExamActive = async (examId, isActive) => {
     }
 };
 
+/**
+ * 시험 재응시 설정 토글
+ */
+export const updateExamRetake = async (examId, allowRetake) => {
+    try {
+        await updateDoc(doc(db, 'exams', examId), { allowRetake });
+        return { error: null };
+    } catch (error) {
+        return { error: error.message };
+    }
+};
+
 // ==================== 제출 조회 ====================
 
 /**
@@ -951,7 +963,7 @@ export const gradeSubmission = (submission, answerData) => {
         itemResults,
         hasEssay,
         essayCount,
-        graded: true
+        graded: !hasEssay // 서술형이 있으면 manualGradingComplete 전까지는 graded: false
     };
 };
 
@@ -1086,6 +1098,7 @@ export const gradeAllSubmissions = async (examId, submissions, answerData) => {
         // 보안: itemResults에서 correctAnswer 제거 (F12 정답 유출 방지)
         // 정답은 교사가 '결과 전송' 시 showAnswers 활성화하면 그때 추가됨
         const safeItemResults = gradeResult.itemResults.map(item => {
+            // eslint-disable-next-line no-unused-vars
             const { correctAnswer, ...rest } = item;
             return rest;
         });
@@ -1095,7 +1108,7 @@ export const gradeAllSubmissions = async (examId, submissions, answerData) => {
             correctCount: gradeResult.correctCount,
             autoScore: gradeResult.autoScore,
             itemResults: safeItemResults, // correctAnswer 제외된 버전 저장
-            graded: true,
+            graded: gradeResult.graded,
             gradedAt: serverTimestamp()
         });
 
@@ -1111,6 +1124,48 @@ export const gradeAllSubmissions = async (examId, submissions, answerData) => {
         return { results, error: null };
     } catch (error) {
         return { results: [], error: error.message };
+    }
+};
+
+/**
+ * 단일 제출물 자동 채점
+ */
+export const autoGradeSubmissions = async (submissionId) => {
+    try {
+        const subDoc = await getDoc(doc(db, 'submissions', submissionId));
+        if (!subDoc.exists()) return { error: 'Submission not found' };
+        const submission = { id: subDoc.id, ...subDoc.data() };
+
+        // 정답 데이터 가져오기 (examId 필요)
+        const { data: answerData, error: answerError } = await getExamAnswers(submission.examId);
+        if (answerError) return { error: answerError };
+
+        // 채점 실행
+        const gradeResult = gradeSubmission(submission, answerData);
+
+        // 결과 저장
+        const submissionRef = doc(db, 'submissions', submissionId);
+
+        // 보안: itemResults에서 correctAnswer 제거
+        const safeItemResults = gradeResult.itemResults.map(item => {
+            // eslint-disable-next-line no-unused-vars
+            const { correctAnswer, ...rest } = item;
+            return rest;
+        });
+
+        await updateDoc(submissionRef, {
+            score: gradeResult.autoScore,
+            correctCount: gradeResult.correctCount,
+            autoScore: gradeResult.autoScore,
+            itemResults: safeItemResults,
+            details: safeItemResults, // details 필드도 동기화 (구버전 호환)
+            graded: gradeResult.graded,
+            gradedAt: serverTimestamp()
+        });
+
+        return { success: true };
+    } catch (error) {
+        return { error: error.message };
     }
 };
 
@@ -1165,15 +1220,13 @@ export const updateResultConfig = async (examId, config, statistics = null) => {
         }
         await updateDoc(doc(db, 'exams', examId), updateData);
 
-        // showAnswers가 활성화되면 submissions에 correctAnswer 주입
-        if (config.showAnswers) {
-            // 정답 데이터 가져오기
+        // 결과 공개 옵션이 하나라도 켜지면 필요한 데이터 주입
+        if (config.showAnswers || config.showExplanation || config.showRadar) {
             const answersDoc = await getDoc(doc(db, 'examAnswers', examId));
             if (answersDoc.exists()) {
                 const answerData = answersDoc.data();
                 const questions = answerData.questions || [];
 
-                // 해당 시험의 모든 submissions 업데이트
                 const subsQuery = query(
                     collection(db, 'submissions'),
                     where('examId', '==', examId)
@@ -1181,15 +1234,36 @@ export const updateResultConfig = async (examId, config, statistics = null) => {
                 const subsSnapshot = await getDocs(subsQuery);
 
                 const batch = writeBatch(db);
+
                 subsSnapshot.docs.forEach(subDoc => {
                     const subData = subDoc.data();
                     if (subData.itemResults && Array.isArray(subData.itemResults)) {
-                        // correctAnswer 주입
-                        const enrichedResults = subData.itemResults.map((item, idx) => ({
-                            ...item,
-                            correctAnswer: questions[idx]?.correctAnswers || null
-                        }));
-                        batch.update(subDoc.ref, { itemResults: enrichedResults });
+                        const enrichedResults = subData.itemResults.map((item, idx) => {
+                            const question = questions[idx] || {};
+
+                            // 기본 데이터 유지
+                            const newItem = { ...item };
+
+                            // 1. 정답 공개 시
+                            if (config.showAnswers) {
+                                newItem.correctAnswer = question.correctAnswers || null;
+                            }
+
+                            // 2. 해설 공개 시
+                            if (config.showExplanation) {
+                                newItem.explanation = question.explanation || '';
+                            }
+
+                            // 3. 레이더 차트용 카테고리 (항상 주입 권장)
+                            newItem.category = question.category || '';
+
+                            return newItem;
+                        });
+
+                        batch.update(subDoc.ref, {
+                            itemResults: enrichedResults,
+                            details: enrichedResults // 구버전 호환용 fields 동기화
+                        });
                     }
                 });
                 await batch.commit();
