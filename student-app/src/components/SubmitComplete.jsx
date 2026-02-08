@@ -21,7 +21,7 @@ function SubmitComplete({ result, onRestart }) {
         if (!result.examId || !result.studentNumber || !remoteExamData) return
 
         const config = remoteExamData.resultConfig || {}
-        const isReleased = config.showScore || config.showAnswers || config.showExplanation || config.showRadar
+        const isReleased = config.isReleased ?? (config.showScore || config.showAnswers || config.showExplanation || config.showRadar)
 
         if (isReleased) {
             const unsub = subscribeToMySubmission(result.examId, result.studentNumber, (data) => {
@@ -43,7 +43,8 @@ function SubmitComplete({ result, onRestart }) {
     }
 
     const config = remoteExamData?.resultConfig || {}
-    const isReleased = config.showScore || config.showAnswers || config.showExplanation || config.showRadar
+    // isReleased가 있으면 그것을 따르고, 없으면(legacy) 기존 플래그 중 하나라도 true면 공개로 간주
+    const isReleased = config.isReleased ?? (config.showScore || config.showAnswers || config.showExplanation || config.showRadar)
     const isGraded = submissionData?.graded
 
     return (

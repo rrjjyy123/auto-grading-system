@@ -64,7 +64,7 @@ function CodeEntry({ onValidated }) {
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                         </svg>
                     </div>
-                    <h1 className="text-2xl font-bold text-gray-800 mb-2">시험 응시</h1>
+                    <h1 className="text-2xl font-bold text-gray-800 mb-2">온마킹(OnMarking)</h1>
                     <p className="text-gray-500">배부받은 코드를 입력하세요</p>
                 </div>
 

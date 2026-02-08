@@ -487,7 +487,7 @@ function AnswerSheet({ studentData, examData, onSubmit, onBack }) {
             </div>
 
             {/* 제출 버튼 (고정) */}
-            <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#FFF8E7] to-transparent">
+            <div className="fixed bottom-0 left-0 right-0 p-4 bg-gradient-to-t from-[#F8FAFC] to-transparent">
                 <div className="max-w-2xl mx-auto">
                     <button
                         onClick={handleSubmitClick}

@@ -1,7 +1,25 @@
 @import "tailwindcss";
 
-/* Custom warm yellow background like 학생중재 app */
+@theme {
+  /* Brand Identity Colors */
+  --color-primary: #4F46E5;
+  /* Royal Indigo */
+  --color-secondary: #10B981;
+  /* Vital Mint */
+  --color-background: #F8FAFC;
+  /* Cool Gray */
+  --color-surface: #FFFFFF;
+  /* Pure White */
+
+  /* Legacy Compatibility */
+  --color-warm-yellow: #FFF8E7;
+  --color-primary-blue: #3B82F6;
+  --color-success-green: #10B981;
+  --color-danger-red: #EF4444;
+}
+
 :root {
+  /* Legacy variables */
   --warm-yellow: #FFF8E7;
   --primary-blue: #3B82F6;
   --success-green: #10B981;

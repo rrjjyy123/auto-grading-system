@@ -129,7 +129,7 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#FFF8E7]">
+    <div className="min-h-screen bg-[#F8FAFC]">
       {screen === 'code' && (
         <CodeEntry onValidated={handleCodeValidated} />
       )}

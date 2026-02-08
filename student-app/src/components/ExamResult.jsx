@@ -78,11 +78,11 @@ function ExamResult({ examData, submissionData, onBack }) {
         const results = itemResults || []
 
         return results.map(item => {
-            const q = questions.find(q => q.num === item.questionNum) || questions[item.questionNum - 1] || {}
+            const q = questions.find(quest => quest.num === item.questionNum) || questions[item.questionNum - 1] || {}
             return {
                 ...item,
-                category: q.category || '',
-                explanation: q.explanation || ''
+                category: q.category || item.category || '',
+                explanation: item.explanation || q.explanation || ''
             }
         })
     }, [itemResults, examData])
@@ -177,14 +177,14 @@ function ExamResult({ examData, submissionData, onBack }) {
                                         </div>
                                         {resultConfig.showAnswers && (
                                             <div className={`px-3 py-1 rounded-full text-sm font-bold ${item.type === 'essay' && item.score !== undefined ? (
-                                                    item.score === (item.maxPoints || 0) ? 'bg-green-100 text-green-700' :
-                                                        item.score === 0 ? 'bg-red-100 text-red-700' :
-                                                            'bg-orange-100 text-orange-700'
-                                                ) : (
-                                                    item.correct === true ? 'bg-green-100 text-green-700' :
-                                                        item.correct === false ? 'bg-red-100 text-red-700' :
-                                                            'bg-yellow-100 text-yellow-700'
-                                                )
+                                                item.score === (item.maxPoints || 0) ? 'bg-green-100 text-green-700' :
+                                                    item.score === 0 ? 'bg-red-100 text-red-700' :
+                                                        'bg-orange-100 text-orange-700'
+                                            ) : (
+                                                item.correct === true ? 'bg-green-100 text-green-700' :
+                                                    item.correct === false ? 'bg-red-100 text-red-700' :
+                                                        'bg-yellow-100 text-yellow-700'
+                                            )
                                                 }`}>
                                                 {
                                                     item.type === 'essay' && item.score !== undefined ? (
